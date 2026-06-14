@@ -1,19 +1,27 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "",
+  "description": "REST API for the Event Booking System — a MERN-stack event management and ticketing platform with role-based access control, atomic capacity management, and JWT authentication.",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
     "seed": "node utils/seed.js"
   },
-  "keywords": [],
+  "keywords": [
+    "event-booking",
+    "express",
+    "mongodb",
+    "mongoose",
+    "jwt",
+    "rest-api",
+    "mern"
+  ],
   "author": {
     "name": "Serkanby",
     "url": "https://serkanbayraktar.com/"
   },
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",

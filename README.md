@@ -1,9 +1,36 @@
-# 🎫 Event Booking System
+<div align="center">
+  <p>
+    <strong>🎫 Event Booking System</strong>
+  </p>
 
-A full-stack event booking platform built with the **MERN** stack (MongoDB, Express, React, Node.js). Features role-based access control (Attendee, Organizer, Admin), real-time capacity management with atomic operations, email confirmations via Outlook SMTP, QR code-based printable tickets, and a security-hardened REST API with multi-tier rate limiting.
+  <h1>Event Booking System</h1>
 
-[![Created by Serkanby](https://img.shields.io/badge/Created%20by-Serkanby-blue?style=flat-square)](https://serkanbayraktar.com/)
-[![GitHub](https://img.shields.io/badge/GitHub-Serkanbyx-181717?style=flat-square&logo=github)](https://github.com/Serkanbyx)
+  <p><em>A full-stack event booking platform with role-based access control, atomic capacity management, QR code tickets, and a security-hardened REST API — built on the MERN stack.</em></p>
+
+  <p>
+    <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
+    <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen?style=flat-square" alt="Node.js version" />
+    <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React 19" />
+    <img src="https://img.shields.io/badge/Express-5-000000?style=flat-square&logo=express&logoColor=white" alt="Express 5" />
+    <img src="https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB Atlas" />
+    <img src="https://img.shields.io/badge/Tailwind-v4-38BDF8?style=flat-square&logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4" />
+    <img src="https://img.shields.io/badge/API-Render-46E3B7?style=flat-square&logo=render&logoColor=white" alt="API on Render" />
+    <img src="https://img.shields.io/badge/Web-Netlify-00C7B7?style=flat-square&logo=netlify&logoColor=white" alt="Web on Netlify" />
+    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs welcome" />
+  </p>
+
+  <p>
+    <a href="https://event-booking-systemm.netlify.app/">Live Demo</a> •
+    <a href="#features">Features</a> •
+    <a href="#installation">Quick Start</a> •
+    <a href="#api-endpoints">API Docs</a> •
+    <a href="#screenshots">Screenshots</a>
+  </p>
+
+  <a href="https://event-booking-systemm.netlify.app/">
+    <img src="./assets/screenshots/landing.png" alt="Event Booking System landing page" />
+  </a>
+</div>
 
 ---
 
@@ -13,7 +40,7 @@ A full-stack event booking platform built with the **MERN** stack (MongoDB, Expr
 - **JWT Authentication** — Secure token-based auth with bcrypt hashing, login attempt limiting, and account locking
 - **Full Event Lifecycle** — Draft → Published → Cancelled/Completed status workflow with slug-based SEO-friendly URLs
 - **Atomic Capacity Management** — Race-condition-safe registration using MongoDB `findOneAndUpdate` + `$expr` to prevent overbooking
-- **Email Notifications** — Automated confirmation and cancellation emails via Outlook SMTP with HTML templates
+- **Email Notifications** — Automated confirmation and cancellation emails via Gmail SMTP with HTML templates
 - **QR Code Tickets** — Unique UUID-based confirmation codes with printable ticket view and QR code generation
 - **Organizer Dashboard** — Event statistics, attendee management, check-in system, revenue tracking, and upcoming events overview
 - **Admin Panel** — System-wide dashboard with user management, event moderation, and registration oversight
@@ -32,12 +59,93 @@ A full-stack event booking platform built with the **MERN** stack (MongoDB, Expr
 
 ## Screenshots
 
-![Home Page](screenshots/home.png)
-![Event List](screenshots/event-list.png)
-![Event Detail](screenshots/event-detail.png)
-![My Tickets](screenshots/my-tickets.png)
-![Organizer Dashboard](screenshots/organizer-dashboard.png)
-![Admin Panel](screenshots/admin-panel.png)
+All screenshots are captured from the [live deployment](https://event-booking-systemm.netlify.app/) running against the seeded demo dataset.
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/landing.png"><img src="./assets/screenshots/landing.png" alt="Landing" /></a>
+      <sub><b>Landing</b><br/>Hero & featured events</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/events.png"><img src="./assets/screenshots/events.png" alt="Events" /></a>
+      <sub><b>Events</b><br/>Search, filter & paginate</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/event-detail.png"><img src="./assets/screenshots/event-detail.png" alt="Event detail" /></a>
+      <sub><b>Event detail</b><br/>Details & registration CTA</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/ticket.png"><img src="./assets/screenshots/ticket.png" alt="Ticket" /></a>
+      <sub><b>Ticket</b><br/>QR code & printable view</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/my-tickets.png"><img src="./assets/screenshots/my-tickets.png" alt="My tickets" /></a>
+      <sub><b>My tickets</b><br/>Personal registrations list</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/register.png"><img src="./assets/screenshots/register.png" alt="Register" /></a>
+      <sub><b>Register</b><br/>JWT-based sign up & login</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/organizer-dashboard.png"><img src="./assets/screenshots/organizer-dashboard.png" alt="Organizer dashboard" /></a>
+      <sub><b>Organizer dashboard</b><br/>Stats, revenue & upcoming</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/attendees.png"><img src="./assets/screenshots/attendees.png" alt="Attendees" /></a>
+      <sub><b>Attendees</b><br/>Check-in & attendee management</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="./assets/screenshots/admin-dashboard.png"><img src="./assets/screenshots/admin-dashboard.png" alt="Admin console" /></a>
+      <sub><b>Admin console</b><br/>Users, events & registrations</sub>
+    </td>
+  </tr>
+</table>
+
+> Drop the captured images into `assets/screenshots/` using the file names above to populate this grid.
+
+---
+
+## Architecture
+
+A high-level visual map of the system. Both diagrams render natively on GitHub thanks to Mermaid support.
+
+### Domain Model
+
+How the core collections relate to each other and how confirmations fan out to users.
+
+```mermaid
+graph LR
+  User(("User"))
+  Event(["Event"])
+  Registration(["Registration"])
+
+  User -- "organizes" --> Event
+  User -- "books" --> Registration
+  Event -- "has many" --> Registration
+  Registration -. "triggers email to" .-> User
+```
+
+### Request Lifecycle
+
+How a single registration request travels through the stack.
+
+```mermaid
+flowchart LR
+  Browser["React 19 SPA<br/>(Vite + Tailwind 4)"]
+  API["Express 5 API<br/>(REST + JWT)"]
+  DB[("MongoDB Atlas<br/>Mongoose 9")]
+  SMTP[("Gmail SMTP<br/>Nodemailer")]
+
+  Browser -- "Axios + JWT (Bearer)" --> API
+  API -- "atomic findOneAndUpdate + $expr" --> DB
+  API -. "confirmation email" .-> SMTP
+  SMTP -. "ticket + QR code" .-> Browser
+```
 
 ---
 
@@ -45,29 +153,29 @@ A full-stack event booking platform built with the **MERN** stack (MongoDB, Expr
 
 ### Frontend
 
-- **React 19** — Modern UI library with hooks and context for state management
-- **React Router DOM** — Client-side routing with nested layouts and route guards
-- **Tailwind CSS 4** — Utility-first CSS framework with dark mode support
-- **Vite** — Lightning-fast build tool and dev server with HMR
-- **Axios** — Promise-based HTTP client with interceptors
-- **qrcode.react** — QR code generation for printable tickets
-- **React Hot Toast** — Elegant toast notifications
-- **date-fns** — Lightweight date utility library
+- **React 19**: Modern UI library with hooks and context for state management
+- **React Router DOM**: Client-side routing with nested layouts and route guards
+- **Tailwind CSS 4**: Utility-first CSS framework with dark mode support
+- **Vite**: Lightning-fast build tool and dev server with HMR
+- **Axios**: Promise-based HTTP client with request/response interceptors
+- **qrcode.react**: QR code generation for printable tickets
+- **React Hot Toast**: Elegant toast notifications
+- **date-fns**: Lightweight date utility library
 
 ### Backend
 
-- **Node.js** — Server-side JavaScript runtime
-- **Express.js** — Minimal and flexible web application framework
-- **MongoDB (Mongoose)** — NoSQL database with elegant object modeling and compound indexes
-- **JWT (jsonwebtoken + bcryptjs)** — Stateless authentication with secure password hashing
-- **Nodemailer** — Email sending via Outlook SMTP with HTML templates
-- **Multer** — Multipart form data handling for file uploads
-- **Helmet** — Secure HTTP response headers with CSP
-- **express-rate-limit** — Multi-tier request rate limiting
-- **express-validator** — Declarative input validation and sanitization
-- **express-mongo-sanitize** — NoSQL injection prevention
-- **Morgan** — HTTP request logging
-- **swagger-jsdoc + swagger-ui-express** — Interactive API documentation with Swagger/OpenAPI 3.0
+- **Node.js**: Server-side JavaScript runtime
+- **Express 5**: Minimal and flexible web application framework
+- **MongoDB (Mongoose 9)**: NoSQL database with elegant object modeling and compound indexes
+- **JWT (jsonwebtoken + bcryptjs)**: Stateless authentication with secure password hashing
+- **Nodemailer**: Email sending via Gmail SMTP with HTML templates
+- **Multer**: Multipart form data handling for file uploads
+- **Helmet**: Secure HTTP response headers with CSP
+- **express-rate-limit**: Multi-tier request rate limiting
+- **express-validator**: Declarative input validation and sanitization
+- **express-mongo-sanitize**: NoSQL injection prevention
+- **Morgan**: HTTP request logging
+- **swagger-jsdoc + swagger-ui-express**: Interactive API documentation with Swagger/OpenAPI 3.0
 
 ---
 
@@ -102,9 +210,9 @@ MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret_min_32_chars
 JWT_EXPIRE=7d
 CLIENT_URL=http://localhost:5173
-SMTP_HOST=smtp.office365.com
+SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your-email@outlook.com
+SMTP_USER=your-email@gmail.com
 SMTP_PASS=your-generated-app-password
 SMTP_FROM_NAME=EventBooking
 UPLOAD_MAX_SIZE=5242880
@@ -157,9 +265,7 @@ cd client && npm run dev
 6. **Organizers** can create, edit, publish, and cancel events from the Organizer Dashboard
 7. **Admins** can manage users, moderate events, and oversee registrations from the Admin Panel
 
----
-
-## Roles & Permissions
+### Roles & Permissions
 
 | Feature | Attendee | Organizer | Admin |
 | --- | --- | --- | --- |
@@ -180,34 +286,18 @@ cd client && npm run dev
 ### Authentication Flow
 
 1. User registers or logs in → server generates a JWT token
-2. Token is stored in `localStorage` and sent via `Authorization: Bearer <token>` header
+2. Token is stored in `localStorage` and sent via the `Authorization: Bearer <token>` header
 3. `AuthContext` calls `/api/auth/me` on mount to restore the session
 4. Protected routes check authentication and role via route guard components (`ProtectedRoute`, `OrganizerRoute`, `AdminRoute`)
-5. Failed login attempts are tracked; account locks after 5 consecutive failures
+5. Failed login attempts are tracked; the account locks for 15 minutes after 5 consecutive failures
 
 ### Registration Flow
 
 1. User clicks "Register" on an event detail page
-2. Server performs an atomic `findOneAndUpdate` with `$expr` to check capacity and increment `registeredCount` in a single operation — preventing race conditions
+2. The server performs an atomic `findOneAndUpdate` with `$expr` to check capacity and increment `registeredCount` in a single operation — preventing race conditions
 3. A `Registration` document is created with a unique UUID-based confirmation code
-4. Confirmation email is sent via Outlook SMTP with an HTML template
-5. User can view their ticket with QR code at `/tickets/:id`
-
-### Architecture
-
-```
-Client (React + Vite)         Server (Express + MongoDB)
-┌─────────────────────┐       ┌──────────────────────────┐
-│  AuthContext         │       │  Middleware Stack         │
-│  ThemeContext         │       │  ├── Helmet (CSP)        │
-│  Pages + Components  │──────▶│  ├── CORS                │
-│  Services (Axios)    │◀──────│  ├── Rate Limiters        │
-│  Route Guards        │       │  ├── Mongo Sanitize       │
-└─────────────────────┘       │  └── Auth (JWT)           │
-                              │  Controllers → Models     │
-                              │  Email Service (SMTP)     │
-                              └──────────────────────────┘
-```
+4. A confirmation email is sent via Gmail SMTP with an HTML template
+5. The user can view their ticket with a QR code at `/tickets/:id`
 
 ---
 
@@ -297,7 +387,7 @@ Client (React + Vite)         Server (Express + MongoDB)
 | POST | `/api/upload/image` | Organizer | Upload an event image |
 | DELETE | `/api/upload/:filename` | Organizer | Delete an uploaded image |
 
-> Auth endpoints require `Authorization: Bearer <token>` header. Rate limits apply per tier: global (100/15min), auth (10/15min), registration (20/15min), upload (10/15min).
+> Auth endpoints require the `Authorization: Bearer <token>` header. Rate limits apply per tier: global (100/15min), auth (10/15min), registration (20/15min), upload (10/15min).
 
 ### API Documentation (Swagger)
 
@@ -311,108 +401,71 @@ Interactive API documentation is available at `/api-docs` when the server is run
 
 ## Project Structure
 
+A clean monorepo layout with an explicit backend / frontend split. Each panel below is collapsible — expand the one you care about.
+
+<details open>
+<summary><b>Server</b> — Express 5 API</summary>
+
+```
+server/
+├── config/         # env validation, db connection, swagger spec
+├── controllers/    # auth, event, registration, user, organizer, admin, upload
+├── middlewares/    # auth/rbac, errorHandler, rateLimiter, upload, validate
+├── models/         # User, Event, Registration (schemas + indexes)
+├── routes/         # one file per resource group (7 routers)
+├── templates/      # HTML email templates (confirmation, cancellation, cancelled)
+├── utils/          # AppError, emailService, escapeHtml, escapeRegex, token, seed
+├── validators/     # express-validator rule sets per resource
+├── uploads/        # uploaded images (gitignored, keeps .gitkeep)
+├── index.js        # Express app composition + bootstrap
+├── .env.example
+└── package.json
+```
+
+</details>
+
+<details>
+<summary><b>Client</b> — React 19 + Vite SPA</summary>
+
+```
+client/
+├── public/         # _redirects (Netlify SPA fallback)
+├── src/
+│   ├── components/ # common (route guards), layout, ui, organizer
+│   ├── contexts/   # AuthContext, ThemeContext
+│   ├── hooks/      # useDebounce, usePagination, useLocalStorage, useDocumentTitle
+│   ├── pages/      # public, auth, protected, organizer, admin
+│   ├── services/   # Axios instance + endpoint modules
+│   ├── utils/      # constants, formatters, helpers
+│   ├── App.jsx     # router + layouts + route guards
+│   ├── main.jsx    # entry point with providers
+│   └── index.css   # Tailwind directives + global styles
+├── netlify.toml    # Netlify deployment config
+├── vite.config.js  # Vite config with API proxy
+└── package.json
+```
+
+</details>
+
+<details>
+<summary><b>Repository root</b> — governance & shared config</summary>
+
 ```
 event-booking-system/
-├── client/                          # React frontend
-│   ├── public/
-│   │   └── _redirects               # Netlify SPA fallback
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── common/              # Route guards, ErrorBoundary, ScrollToTop
-│   │   │   ├── layout/              # Navbar, Footer, MainLayout, OrganizerLayout, AdminLayout
-│   │   │   ├── organizer/           # EventForm
-│   │   │   └── ui/                  # EventCard, Spinner, Modal, StatusBadge, CapacityBar, etc.
-│   │   ├── contexts/
-│   │   │   ├── AuthContext.jsx      # JWT auth state and token management
-│   │   │   └── ThemeContext.jsx     # Light/dark/system theme persistence
-│   │   ├── hooks/                   # useDebounce, usePagination, useLocalStorage, useDocumentTitle
-│   │   ├── pages/
-│   │   │   ├── admin/               # AdminDashboard, AdminUsers, AdminEvents, AdminRegistrations
-│   │   │   ├── organizer/           # OrganizerDashboard, CreateEvent, EditEvent, Attendees, Settings
-│   │   │   ├── HomePage.jsx         # Landing page with featured events
-│   │   │   ├── EventListPage.jsx    # Browse events with search and filters
-│   │   │   ├── EventDetailPage.jsx  # Single event with registration
-│   │   │   ├── MyTicketsPage.jsx    # User's tickets list
-│   │   │   ├── TicketDetailPage.jsx # Ticket with QR code and print
-│   │   │   ├── LoginPage.jsx        # User login
-│   │   │   ├── RegisterPage.jsx     # User registration
-│   │   │   ├── SettingsPage.jsx     # User profile settings
-│   │   │   ├── PublicProfilePage.jsx # Public user/organizer profile
-│   │   │   └── NotFoundPage.jsx     # 404 page
-│   │   ├── services/                # API modules (auth, event, registration, user, organizer, admin, upload)
-│   │   ├── utils/                   # helpers, formatters, constants
-│   │   ├── App.jsx                  # Router and layout setup
-│   │   ├── main.jsx                 # React entry point with providers
-│   │   └── index.css                # Global styles and Tailwind directives
-│   ├── index.html
-│   ├── netlify.toml                 # Netlify deployment config
-│   ├── vite.config.js               # Vite config with API proxy
-│   └── package.json
-│
-├── server/                          # Express backend
-│   ├── config/
-│   │   ├── db.js                    # MongoDB connection
-│   │   └── env.js                   # Environment variable validation
-│   ├── controllers/                 # Route handlers (auth, event, registration, user, organizer, admin, upload)
-│   ├── middlewares/
-│   │   ├── auth.js                  # JWT protect, optionalAuth, role guards
-│   │   ├── errorHandler.js          # Centralized error handling
-│   │   ├── rateLimiter.js           # Multi-tier rate limiters
-│   │   ├── upload.js                # Multer config with MIME validation
-│   │   └── validate.js              # express-validator middleware
-│   ├── models/
-│   │   ├── User.js                  # User schema with roles and login tracking
-│   │   ├── Event.js                 # Event schema with slug, capacity, status workflow
-│   │   └── Registration.js          # Registration schema with UUID confirmation codes
-│   ├── routes/                      # API route definitions (7 route files)
-│   ├── templates/                   # HTML email templates (confirmation, cancellation)
-│   ├── uploads/                     # Uploaded files directory (gitignored)
-│   ├── utils/
-│   │   ├── AppError.js              # Custom error class
-│   │   ├── emailService.js          # Nodemailer SMTP service
-│   │   ├── escapeHtml.js            # XSS prevention utility
-│   │   ├── escapeRegex.js           # ReDoS prevention utility
-│   │   ├── generateToken.js         # JWT token generator
-│   │   └── seed.js                  # Admin user and sample data seeder
-│   ├── validators/                  # Validation rules (auth, event, registration, query, param, admin)
-│   ├── .env.example                 # Environment variable template
-│   ├── index.js                     # Server entry point
-│   └── package.json
-│
+├── client/         # → see Client panel above
+├── server/         # → see Server panel above
+├── docs/           # build-guide.md (original step-by-step build playbook)
+├── .github/        # issue templates, PR template, governance docs
+│   ├── ISSUE_TEMPLATE/
+│   ├── CODE_OF_CONDUCT.md
+│   ├── CONTRIBUTING.md
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── SECURITY.md
+├── LICENSE
 └── README.md
 ```
 
----
-
-## Environment Variables
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `PORT` | Server port | `5000` |
-| `NODE_ENV` | Environment mode | `development` |
-| `MONGO_URI` | MongoDB connection string | — |
-| `JWT_SECRET` | JWT signing secret (min 32 chars in production) | — |
-| `JWT_EXPIRE` | JWT token expiration | `7d` |
-| `CLIENT_URL` | Frontend URL for CORS | `http://localhost:5173` |
-| `SMTP_HOST` | SMTP server host | `smtp.office365.com` |
-| `SMTP_PORT` | SMTP server port | `587` |
-| `SMTP_USER` | SMTP email address | — |
-| `SMTP_PASS` | SMTP app password | — |
-| `SMTP_FROM_NAME` | Sender display name | `EventBooking` |
-| `UPLOAD_MAX_SIZE` | Max upload size in bytes | `5242880` (5MB) |
-| `ADMIN_SEED_EMAIL` | Admin email for seed script | — |
-| `ADMIN_SEED_PASSWORD` | Admin password for seed script | — |
-| `ADMIN_SEED_NAME` | Admin display name for seed script | `Admin` |
-
----
-
-## Email Setup (Outlook SMTP)
-
-1. Go to [Microsoft Account Security](https://account.microsoft.com/security) → **App passwords**
-2. Generate a new app password for "Event Booking System"
-3. Configure the SMTP environment variables in `server/.env`
-4. The server verifies the SMTP connection on startup and logs the result
-5. In development mode, emails are logged to console if SMTP credentials are not configured
+</details>
 
 ---
 
@@ -420,7 +473,7 @@ event-booking-system/
 
 - **Helmet** — Sets secure HTTP response headers with explicit CSP directives in production
 - **CORS** — Restricts cross-origin requests to the allowed frontend URL (never wildcard in production)
-- **Rate Limiting** — Multiple tiers: global (100/15min), auth (10/15min), registration (20/15min), upload (10/15min), and confirmation-specific limits
+- **Rate Limiting** — Multiple tiers: global (100/15min), auth (10/15min), registration (20/15min), upload (10/15min), and confirmation-specific limits, with standardized `RateLimit-*` headers
 - **MongoDB Sanitization** — Prevents NoSQL injection via `express-mongo-sanitize` middleware (Express 5 compatible)
 - **Input Validation** — All endpoints validated with `express-validator` rules and centralized validation middleware
 - **XSS Prevention** — HTML escaping utility for user-generated content in email templates
@@ -439,6 +492,20 @@ event-booking-system/
 ---
 
 ## Deployment
+
+### Backend (Render / Railway)
+
+1. Create a new Web Service on [Render](https://render.com/) or [Railway](https://railway.app/)
+2. Set the root directory to `server`
+3. Configure:
+
+| Setting | Value |
+| --- | --- |
+| Build command | `npm install` |
+| Start command | `npm start` |
+
+4. Add all environment variables from the table below
+5. Set `CLIENT_URL` to your Netlify frontend URL
 
 ### Frontend (Netlify)
 
@@ -459,19 +526,33 @@ event-booking-system/
 
 > The `netlify.toml` and `_redirects` files are already configured for SPA routing.
 
-### Backend (Render / Railway)
+### Environment Variables
 
-1. Create a new Web Service on [Render](https://render.com/) or [Railway](https://railway.app/)
-2. Set the root directory to `server`
-3. Configure:
+| Variable | Description | Default |
+| --- | --- | --- |
+| `PORT` | Server port | `5000` |
+| `NODE_ENV` | Environment mode | `development` |
+| `MONGO_URI` | MongoDB connection string | — |
+| `JWT_SECRET` | JWT signing secret (min 32 chars in production) | — |
+| `JWT_EXPIRE` | JWT token expiration | `7d` |
+| `CLIENT_URL` | Frontend URL for CORS | `http://localhost:5173` |
+| `SMTP_HOST` | SMTP server host | `smtp.gmail.com` |
+| `SMTP_PORT` | SMTP server port | `587` |
+| `SMTP_USER` | SMTP email address | — |
+| `SMTP_PASS` | SMTP app password | — |
+| `SMTP_FROM_NAME` | Sender display name | `EventBooking` |
+| `UPLOAD_MAX_SIZE` | Max upload size in bytes | `5242880` (5MB) |
+| `ADMIN_SEED_EMAIL` | Admin email for seed script | — |
+| `ADMIN_SEED_PASSWORD` | Admin password for seed script | — |
+| `ADMIN_SEED_NAME` | Admin display name for seed script | `Admin` |
 
-| Setting | Value |
-| --- | --- |
-| Build command | `npm install` |
-| Start command | `npm start` |
+### Email Setup (Gmail SMTP)
 
-4. Add all environment variables from the table above
-5. Set `CLIENT_URL` to your Netlify frontend URL
+1. Enable **2-Step Verification** on your Google Account at [Google Account Security](https://myaccount.google.com/security)
+2. Go to [App passwords](https://myaccount.google.com/apppasswords) and generate a new 16-character app password for "Event Booking System"
+3. Configure the SMTP environment variables in `server/.env` (use the app password — **not** your account password — for `SMTP_PASS`)
+4. The server verifies the SMTP connection on startup and logs the result
+5. In development mode, emails are logged to console if SMTP credentials are not configured
 
 ---
 
@@ -521,6 +602,8 @@ event-booking-system/
 | `style:` | Formatting, missing semicolons, etc. |
 | `chore:` | Maintenance and dependency updates |
 
+> Please read our [Contributing Guide](.github/CONTRIBUTING.md) and [Code of Conduct](.github/CODE_OF_CONDUCT.md) before submitting a pull request. To understand how the project was built end to end, see the [Build Guide](docs/build-guide.md).
+
 ---
 
 ## License
@@ -537,8 +620,14 @@ This project is licensed under the [MIT License](LICENSE).
 - GitHub: [@Serkanbyx](https://github.com/Serkanbyx)
 - Email: [serkanbyx1@gmail.com](mailto:serkanbyx1@gmail.com)
 
+---
+
 ## Contact
 
 - [Open an Issue](https://github.com/Serkanbyx/event-booking-system/issues)
 - Email: [serkanbyx1@gmail.com](mailto:serkanbyx1@gmail.com)
 - Website: [serkanbayraktar.com](https://serkanbayraktar.com/)
+
+---
+
+⭐ If you like this project, don't forget to give it a star!

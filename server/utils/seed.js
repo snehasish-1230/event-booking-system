@@ -30,7 +30,7 @@ const seedEvents = [
     time: '09:00',
     location: {
       venue: 'Istanbul Congress Center',
-      address: 'Darülbedai Cad. No:3, Harbiye',
+      address: 'Darulbedai Cad. No:3, Harbiye',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -51,7 +51,7 @@ const seedEvents = [
     time: '10:00',
     location: {
       venue: 'Kolektif House Levent',
-      address: 'Büyükdere Cad. No:185',
+      address: 'Buyukdere Cad. No:185',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -71,7 +71,7 @@ const seedEvents = [
     time: '19:00',
     location: {
       venue: 'Soho House Istanbul',
-      address: 'Meşrutiyet Cad. No:56, Beyoğlu',
+      address: 'Mesrutiyet Cad. No:56, Beyoglu',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -111,7 +111,7 @@ const seedEvents = [
     time: '18:30',
     location: {
       venue: 'Workinton Maslak',
-      address: 'Maslak Mah. Eski Büyükdere Cad.',
+      address: 'Maslak Mah. Eski Buyukdere Cad.',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -132,7 +132,7 @@ const seedEvents = [
     time: '16:00',
     location: {
       venue: 'Parkorman',
-      address: 'Maslak, Sarıyer',
+      address: 'Maslak, Sariyer',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -152,7 +152,7 @@ const seedEvents = [
     time: '07:00',
     location: {
       venue: 'Bosphorus Bridge Start Point',
-      address: '15 Temmuz Şehitler Köprüsü',
+      address: '15 Temmuz Sehitler Koprusu',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -193,7 +193,7 @@ const seedEvents = [
     time: '09:30',
     location: {
       venue: 'Bilgi University Santral Campus',
-      address: 'Eski Silahtarağa Elektrik Santralı, Eyüpsultan',
+      address: 'Eski Silahtaraga Elektrik Santrali, Eyupsultan',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -214,7 +214,7 @@ const seedEvents = [
     time: '10:00',
     location: {
       venue: 'Hilton Istanbul Bomonti',
-      address: 'Silahşör Cad. No:42, Şişli',
+      address: 'Silahsor Cad. No:42, Sisli',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -234,7 +234,7 @@ const seedEvents = [
     time: '10:00',
     location: {
       venue: 'Raffles Istanbul',
-      address: 'Zorlu Center, Beşiktaş',
+      address: 'Zorlu Center, Besiktas',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -274,7 +274,7 @@ const seedEvents = [
     time: '09:00',
     location: {
       venue: 'Google Developer Hub',
-      address: 'Maslak Mah., Sarıyer',
+      address: 'Maslak Mah., Sariyer',
       city: 'Istanbul',
       country: 'Turkey',
     },
@@ -294,7 +294,7 @@ const seedEvents = [
     time: '20:00',
     location: {
       venue: 'Nardis Jazz Club',
-      address: 'Galata Kulesi Sokak No:14, Beyoğlu',
+      address: 'Galata Kulesi Sokak No:14, Beyoglu',
       city: 'Istanbul',
       country: 'Turkey',
     },
