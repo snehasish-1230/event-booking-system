@@ -36,7 +36,12 @@ const connectDB = async () => {
 
   if (!cached.promise) {
     cached.promise = mongoose
-      .connect(MONGO_URI)
+      .connect(MONGO_URI, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 10,
+      })
       .then((mongooseInstance) => {
         console.log(
           `MongoDB connected: ${mongooseInstance.connection.host}`
@@ -45,7 +50,15 @@ const connectDB = async () => {
       })
       .catch((error) => {
         cached.promise = null;
-        console.error("MongoDB connection error:", error.message);
+        console.error("MongoDB connection error:", {
+          name: error.name,
+          code: error.code,
+          codeName: error.codeName,
+          message: error.message.replace(
+            /mongodb(?:\+srv)?:\/\/\S+/gi,
+            "[redacted MongoDB URI]"
+          ),
+        });
         throw error;
       });
   }

@@ -5,7 +5,7 @@ const localDevelopmentOrigins = [
   "http://localhost:5173",
 ];
 const deployedFrontendOrigins = [
-  "https://event-booking-system-lduatw9x4-ff-team8.vercel.app",
+  "https://event-booking-system-3jw3p0uq2-ff-team8.vercel.app",
   "https://event-booking-system-xi-two.vercel.app",
 ];
 

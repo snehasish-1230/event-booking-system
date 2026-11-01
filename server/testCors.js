@@ -1,10 +1,10 @@
 const assert = require("node:assert/strict");
 const express = require("express");
 const configureCors = require("./config/cors");
-const eventRoutes = require("./routes/eventRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 const frontendOrigins = [
-  "https://event-booking-system-lduatw9x4-ff-team8.vercel.app",
+  "https://event-booking-system-3jw3p0uq2-ff-team8.vercel.app",
   "https://event-booking-system-xi-two.vercel.app",
 ];
 const app = express();
@@ -14,7 +14,8 @@ configureCors(app, {
   clientUrl: frontendOrigins.join(","),
 });
 
-app.use("/api/events", eventRoutes);
+app.use(express.json());
+app.use("/api/auth", authRoutes);
 
 const server = app.listen(0, "127.0.0.1");
 
@@ -26,7 +27,7 @@ const run = async () => {
   try {
     for (const frontendOrigin of frontendOrigins) {
       const preflight = await fetch(
-        `${baseUrl}/api/events/000000000000000000000000/register`,
+        `${baseUrl}/api/auth/register`,
         {
           method: "OPTIONS",
           headers: {
@@ -50,7 +51,7 @@ const run = async () => {
       assert.equal(preflight.headers.get("access-control-allow-credentials"), null);
 
       const registration = await fetch(
-        `${baseUrl}/api/events/000000000000000000000000/register`,
+        `${baseUrl}/api/auth/register`,
         {
           method: "POST",
           headers: {
@@ -61,14 +62,14 @@ const run = async () => {
         },
       );
 
-      assert.equal(registration.status, 401);
+      assert.equal(registration.status, 400);
       assert.equal(
         registration.headers.get("access-control-allow-origin"),
         frontendOrigin,
       );
     }
 
-    const blockedPreflight = await fetch(`${baseUrl}/api/events/test/register`, {
+    const blockedPreflight = await fetch(`${baseUrl}/api/auth/register`, {
       method: "OPTIONS",
       headers: {
         Origin: "https://untrusted.example",
@@ -80,7 +81,7 @@ const run = async () => {
     assert.equal(blockedPreflight.headers.get("access-control-allow-origin"), null);
 
     console.log(
-      "CORS tests passed: both production origins can preflight and reach registration; untrusted origin is blocked.",
+      "CORS tests passed: both production origins can preflight and reach registration validation; untrusted origin is blocked.",
     );
   } finally {
     await new Promise((resolve, reject) =>

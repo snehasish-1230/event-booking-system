@@ -15,19 +15,19 @@
     <img src="https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB Atlas" />
     <img src="https://img.shields.io/badge/Tailwind-v4-38BDF8?style=flat-square&logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4" />
     <img src="https://img.shields.io/badge/API-Render-46E3B7?style=flat-square&logo=render&logoColor=white" alt="API on Render" />
-    <img src="https://img.shields.io/badge/Web-Netlify-00C7B7?style=flat-square&logo=netlify&logoColor=white" alt="Web on Netlify" />
+    <img src="https://img.shields.io/badge/Web-Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Web on Vercel" />
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs welcome" />
   </p>
 
   <p>
-    <a href="https://event-booking-systemm.netlify.app/">Live Demo</a> •
+    <a href="https://event-booking-system-xi-two.vercel.app/">Live Demo</a> •
     <a href="#features">Features</a> •
     <a href="#installation">Quick Start</a> •
     <a href="#api-endpoints">API Docs</a> •
     <a href="#screenshots">Screenshots</a>
   </p>
 
-  <a href="https://event-booking-systemm.netlify.app/">
+  <a href="https://event-booking-system-xi-two.vercel.app/">
     <img src="./assets/screenshots/landing.png" alt="Event Booking System landing page" />
   </a>
 </div>
@@ -53,13 +53,13 @@
 
 ## Live Demo
 
-[🚀 View Live Demo](https://event-booking-systemm.netlify.app/)
+[🚀 View Live Demo](https://event-booking-system-xi-two.vercel.app/)
 
 ---
 
 ## Screenshots
 
-All screenshots are captured from the [live deployment](https://event-booking-systemm.netlify.app/) running against the seeded demo dataset.
+All screenshots are captured from the [live deployment](https://event-booking-system-xi-two.vercel.app/) running against the seeded demo dataset.
 
 <table>
   <tr>
@@ -211,7 +211,7 @@ JWT_SECRET=your_jwt_secret_min_32_chars
 JWT_EXPIRE=7d
 CLIENT_URL=http://localhost:5175,http://localhost:5173
 SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
+SMTP_PORT=465
 SMTP_USER=your-email@gmail.com
 SMTP_PASS=your-generated-app-password
 SMTP_FROM_NAME=EventBooking
@@ -529,9 +529,10 @@ event-booking-system/
 | Start command | `npm start` |
 
 4. Add all environment variables from the table below, including `NODE_ENV=production`
-5. Set `CLIENT_URL=https://event-booking-system-lduatw9x4-ff-team8.vercel.app,https://event-booking-system-xi-two.vercel.app` (comma-separated origins; do not include paths).
+5. Set `CLIENT_URL=https://event-booking-system-xi-two.vercel.app,https://event-booking-system-3jw3p0uq2-ff-team8.vercel.app` (comma-separated origins; do not include paths).
+6. Configure `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER` (Gmail address), and `SMTP_PASS` (Gmail App Password). Set `NODE_ENV=production`; the server verifies MongoDB and SMTP before accepting traffic.
 
-### Frontend (Netlify)
+### Frontend (Vercel or Netlify)
 
 1. Connect your GitHub repository to [Netlify](https://www.netlify.com/)
 2. Set build settings:
@@ -555,24 +556,27 @@ event-booking-system/
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `PORT` | Server port | `5000` |
-| `NODE_ENV` | Environment mode | `development` |
+| `PORT` | Server port (Render provides this automatically) | `5002` locally |
+| `NODE_ENV` | Environment mode; set to `production` on Render | `development` locally |
 | `MONGO_URI` | MongoDB connection string | — |
 | `JWT_SECRET` | JWT signing secret (min 32 chars in production) | — |
 | `JWT_EXPIRE` | JWT token expiration | `7d` |
 | `CLIENT_URL` | Comma-separated frontend origins for CORS | Production: both deployed Vercel origins; local: `http://localhost:5175,http://localhost:5173` |
 | `SMTP_HOST` | SMTP server host | `smtp.gmail.com` |
-| `SMTP_PORT` | SMTP server port | `587` |
+| `SMTP_PORT` | SMTP server port | `465` (TLS); `587` (STARTTLS) is also supported |
 | `SMTP_USER` | SMTP email address | — |
 | `SMTP_PASS` | SMTP app password | — |
 | `SMTP_FROM_NAME` | Sender display name | `EventBooking` |
 | `EMAIL_OTP_SECRET` | HMAC secret for OTP/reset credentials; defaults to `JWT_SECRET` | — |
 | `UPLOAD_MAX_SIZE` | Max upload size in bytes | `5242880` (5MB) |
+| `UPI_ID` | Merchant UPI address for payment QR generation | `merchant@upi` |
+| `PAYMENT_QR_URL` | Optional hosted payment QR image URL | — |
+| `MAX_PAYMENT_SCREENSHOT_SIZE_MB` | Maximum payment screenshot size | `5` |
 | `ADMIN_SEED_EMAIL` | Admin email for seed script | — |
-| `ADMIN_SEED_PASSWORD` | Admin password for seed script | — |
+| `ADMIN_SEED_PASSWORD` | Required only when intentionally running the seed script; do not set a default production password | — |
+| `ADMIN_SEED_NAME` | Optional display name for the seed script | — |
 | `VITE_API_URL` | Production frontend API base URL (include `/api`) | `https://event-booking-system-yn5h.onrender.com/api` |
 | `VITE_API_URL_LOCAL` | Local development backend API base URL (include `/api`) | `http://localhost:5002/api` |
-| `ADMIN_SEED_NAME` | Admin display name for seed script | `Admin` |
 
 ### Development-only admin unlock
 

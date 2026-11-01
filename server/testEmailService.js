@@ -8,17 +8,24 @@ const originalError = console.error;
 const logs = [];
 const outcomes = [];
 const sentMessages = [];
+let transportOptions;
 
 env.SMTP_USER = 'sender@example.test';
 env.SMTP_PASS = 'test-secret-not-for-logging';
-nodemailer.createTransport = () => ({
-  sendMail: async (message) => {
-    sentMessages.push(message);
-    const outcome = outcomes.shift();
-    if (outcome instanceof Error) throw outcome;
-    return outcome;
-  },
-});
+env.SMTP_HOST = 'smtp.gmail.com';
+env.SMTP_PORT = 465;
+nodemailer.createTransport = (options) => {
+  transportOptions = options;
+  return {
+    sendMail: async (message) => {
+      sentMessages.push(message);
+      const outcome = outcomes.shift();
+      if (outcome instanceof Error) throw outcome;
+      return outcome;
+    },
+    verify: async () => true,
+  };
+};
 console.info = (...args) => logs.push(args);
 console.error = (...args) => logs.push(args);
 delete require.cache[require.resolve('./utils/emailService')];
@@ -32,6 +39,14 @@ const smtpAccepted = (to, messageId) => ({
 });
 
 const run = async () => {
+  assert.equal(transportOptions.host, 'smtp.gmail.com');
+  assert.equal(transportOptions.port, 465);
+  assert.equal(transportOptions.secure, true);
+  assert.equal(transportOptions.connectionTimeout, 10000);
+  assert.equal(transportOptions.greetingTimeout, 10000);
+  assert.equal(transportOptions.socketTimeout, 15000);
+  assert.equal(await emailService.verifyConnection(), true);
+
   const recipients = ['first.recipient@gmail.com', 'second.recipient@gmail.com'];
   for (const [index, recipient] of recipients.entries()) {
     outcomes.push(smtpAccepted(recipient, `<accepted-${index}@example.test>`));

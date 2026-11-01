@@ -61,6 +61,15 @@ const errorHandler = (err, req, res, next) => {
     res.setHeader('Retry-After', String(Math.ceil(err.retryAfterSeconds)));
   }
 
+  if (isProduction && statusCode >= 500) {
+    console.error('Unhandled API error:', {
+      name: err.name,
+      code: err.code,
+      method: req.method,
+      path: req.path,
+    });
+  }
+
   res.status(statusCode).json({
     success: false,
     message: isProduction && statusCode === 500 ? 'Internal server error' : message,

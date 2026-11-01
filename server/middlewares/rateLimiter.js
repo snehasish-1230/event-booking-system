@@ -67,6 +67,9 @@ const loginLimiter = createLimiter(env.NODE_ENV === 'production' ? 10 : 50, {
   },
 });
 const authLimiter = loginLimiter;
+const registrationOtpLimiter = createLimiter(
+  env.NODE_ENV === 'production' ? 10 : 20
+);
 const otpRequestLimiter = createLimiter(env.NODE_ENV === 'production' ? 5 : 10);
 const otpVerifyLimiter = createLimiter(env.NODE_ENV === 'production' ? 10 : 20);
 const passwordResetRequestLimiter = createLimiter(
@@ -93,6 +96,7 @@ module.exports = {
   globalLimiter,
   loginLimiter,
   authLimiter,
+  registrationOtpLimiter,
   otpRequestLimiter,
   otpVerifyLimiter,
   passwordResetRequestLimiter,

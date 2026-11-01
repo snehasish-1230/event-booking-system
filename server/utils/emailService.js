@@ -4,11 +4,14 @@ const env = require('../config/env');
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
-  secure: false,
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASS,
-  },
+  secure: env.SMTP_PORT === 465,
+  requireTLS: env.SMTP_PORT !== 465,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
+  ...(env.SMTP_USER && env.SMTP_PASS
+    ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASS } }
+    : {}),
 });
 
 const getAddress = (value) => {
@@ -52,6 +55,15 @@ const logTransactionalAttempt = ({ to, info, error, recipientAccepted }) => {
   log('Transactional email SMTP submission result:', diagnostics);
 };
 
+const logSmtpFailure = (event, error) => {
+  console.error(event, {
+    code: error?.code,
+    command: error?.command,
+    responseCode: error?.responseCode,
+    name: error?.name,
+  });
+};
+
 /**
  * Sends an email via the configured SMTP transporter.
  * Failures are logged but never thrown — email errors
@@ -68,7 +80,7 @@ const sendEmail = async ({ to, subject, html }) => {
 
     return { success: true };
   } catch (error) {
-    console.error(`Email sending failed to ${to}:`, error.message);
+    logTransactionalAttempt({ to, error, recipientAccepted: false });
     return { success: false };
   }
 };
@@ -80,17 +92,29 @@ const sendEmail = async ({ to, subject, html }) => {
  */
 const verifyConnection = async () => {
   if (!env.SMTP_USER || !env.SMTP_PASS) {
-    console.warn(
-      'SMTP credentials not configured — email sending is disabled'
+    const error = new Error(
+      'SMTP_USER and SMTP_PASS must be configured before production startup'
     );
-    return;
+    error.code = 'EMAIL_NOT_CONFIGURED';
+    if (env.NODE_ENV === 'production') throw error;
+    console.warn('SMTP credentials not configured — email sending is disabled');
+    return false;
   }
 
   try {
     await transporter.verify();
     console.log('SMTP connection verified — email service is ready');
+    return true;
   } catch (error) {
-    console.warn('SMTP connection failed:', error.message);
+    logSmtpFailure('SMTP connection verification failed:', error);
+    if (env.NODE_ENV === 'production') {
+      const verificationError = new Error(
+        'SMTP connection verification failed; check SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS'
+      );
+      verificationError.code = 'SMTP_VERIFICATION_FAILED';
+      throw verificationError;
+    }
+    return false;
   }
 };
 

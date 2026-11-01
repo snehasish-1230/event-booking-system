@@ -145,7 +145,7 @@ event-booking-system/
 
 **Implementation notes:**
 
-- Export a single `env` object reading `process.env` with defaults (`PORT=5000`, `NODE_ENV=development`, local `MONGO_URI`, `JWT_EXPIRE=7d`, `CLIENT_URL`, `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `UPLOAD_MAX_SIZE=5242880`).
+- Export a single `env` object reading `process.env` with defaults (`PORT=5002`, `NODE_ENV=development`, local `MONGO_URI`, `JWT_EXPIRE=7d`, `CLIENT_URL`, `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `UPLOAD_MAX_SIZE=5242880`).
 - In production, throw at boot if `JWT_SECRET` is missing or under 32 chars, or if `SMTP_USER`/`SMTP_PASS` are missing.
 - Keep all secrets out of source; `.env.example` documents every variable with placeholder values only.
 

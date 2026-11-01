@@ -134,6 +134,7 @@ const express = require('express');
 const {
   globalLimiter,
   loginLimiter,
+  registrationOtpLimiter,
   otpRequestLimiter,
   otpVerifyLimiter,
 } = require('./middlewares/rateLimiter');
@@ -194,6 +195,7 @@ const testRegistrationPhoneValidation = async () => {
 
 const testOtpRateLimits = async () => {
   const app = express();
+  app.set('trust proxy', 1);
   app.post('/request', otpRequestLimiter, (_req, res) => res.sendStatus(204));
   app.post('/verify', otpVerifyLimiter, (_req, res) => res.sendStatus(204));
   const server = await new Promise((resolve) => {
@@ -204,7 +206,10 @@ const testOtpRateLimits = async () => {
     const baseUrl = `http://127.0.0.1:${server.address().port}`;
     const requestStatuses = [];
     for (let i = 0; i < 11; i += 1) {
-      const response = await fetch(`${baseUrl}/request`, { method: 'POST' });
+      const response = await fetch(`${baseUrl}/request`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '198.51.100.40' },
+      });
       requestStatuses.push(response.status);
     }
     assert.equal(requestStatuses.filter((status) => status === 204).length, 10);
@@ -212,7 +217,10 @@ const testOtpRateLimits = async () => {
 
     const verificationStatuses = [];
     for (let i = 0; i < 21; i += 1) {
-      const response = await fetch(`${baseUrl}/verify`, { method: 'POST' });
+      const response = await fetch(`${baseUrl}/verify`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '198.51.100.41' },
+      });
       verificationStatuses.push(response.status);
     }
     assert.equal(verificationStatuses.filter((status) => status === 204).length, 20);
@@ -224,8 +232,40 @@ const testOtpRateLimits = async () => {
   }
 };
 
+const testRegistrationLimiterIsIndependent = async () => {
+  const app = express();
+  app.set('trust proxy', 1);
+  app.post('/register', registrationOtpLimiter, (_req, res) => res.sendStatus(204));
+  app.post('/resend', otpRequestLimiter, (_req, res) => res.sendStatus(204));
+  const server = await new Promise((resolve) => {
+    const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
+  });
+
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const response = await fetch(`${baseUrl}/resend`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '198.51.100.42' },
+      });
+      assert.equal(response.status, 204);
+    }
+
+    const registrationResponse = await fetch(`${baseUrl}/register`, {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '198.51.100.42' },
+    });
+    assert.equal(registrationResponse.status, 204);
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+};
+
 const testLoginRateLimits = async () => {
   const app = express();
+  app.set('trust proxy', 1);
   app.use('/api', globalLimiter);
   app.post('/api/auth/login', loginLimiter, (req, res) => {
     res.sendStatus(req.header('x-test-login') === 'success' ? 200 : 401);
@@ -239,19 +279,28 @@ const testLoginRateLimits = async () => {
     for (let attempt = 0; attempt < 101; attempt += 1) {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'x-test-login': 'success' },
+        headers: {
+          'x-test-login': 'success',
+          'x-forwarded-for': '198.51.100.43',
+        },
       });
       await response.arrayBuffer();
       assert.equal(response.status, 200);
     }
 
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      const response = await fetch(url, { method: 'POST' });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '198.51.100.43' },
+      });
       await response.arrayBuffer();
       assert.equal(response.status, 401);
     }
 
-    const limitedResponse = await fetch(url, { method: 'POST' });
+    const limitedResponse = await fetch(url, {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '198.51.100.43' },
+    });
     const limitedBody = await limitedResponse.json();
     assert.equal(limitedResponse.status, 429);
     assert.match(limitedBody.message, /Too many failed login attempts/);
@@ -543,6 +592,7 @@ const run = async () => {
   assert.match(unknownResend.body.message, /If this address is eligible/);
 
   await testOtpRateLimits();
+  await testRegistrationLimiterIsIndependent();
   await testLoginRateLimits();
   console.log('Email OTP registration and verification checks passed.');
 };

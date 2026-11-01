@@ -9,10 +9,11 @@ const env = {
   CLIENT_URL:
     process.env.CLIENT_URL ||
     (process.env.NODE_ENV === 'production'
-      ? 'https://event-booking-system-lduatw9x4-ff-team8.vercel.app,https://event-booking-system-xi-two.vercel.app'
+      ? 'https://event-booking-system-3jw3p0uq2-ff-team8.vercel.app,https://event-booking-system-xi-two.vercel.app'
       : 'http://localhost:5175,http://localhost:5173'),
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
-  SMTP_PORT: parseInt(process.env.SMTP_PORT, 10) || 587,
+  SMTP_PORT:
+    process.env.SMTP_PORT === undefined ? 465 : Number(process.env.SMTP_PORT),
   SMTP_USER: process.env.SMTP_USER,
   SMTP_PASS: process.env.SMTP_PASS,
   SMTP_FROM_NAME: process.env.SMTP_FROM_NAME || 'EventBooking',
@@ -25,6 +26,10 @@ const env = {
 const isProduction = env.NODE_ENV === 'production';
 
 if (isProduction) {
+  if (![465, 587].includes(env.SMTP_PORT)) {
+    throw new Error('SMTP_PORT must be 465 or 587 for Gmail SMTP');
+  }
+
   if (!env.JWT_SECRET || env.JWT_SECRET.length < 32) {
     throw new Error(
       'JWT_SECRET must be set and at least 32 characters in production'

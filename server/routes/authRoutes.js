@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   loginLimiter,
+  registrationOtpLimiter,
   otpRequestLimiter,
   otpVerifyLimiter,
   passwordResetRequestLimiter,
@@ -41,7 +42,7 @@ const router = express.Router();
 
 router.post(
   '/register',
-  otpRequestLimiter,
+  registrationOtpLimiter,
   registerRules,
   validate,
   register

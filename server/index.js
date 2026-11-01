@@ -357,8 +357,8 @@ app.use(errorHandler);
 // Start local server during development
 if (require.main === module) {
   connectDB()
-    .then(() => {
-      verifyConnection();
+    .then(async () => {
+      await verifyConnection();
 
       app.listen(env.PORT, () => {
         console.log(
@@ -367,7 +367,10 @@ if (require.main === module) {
       });
     })
     .catch((error) => {
-      console.error("Server startup failed:", error);
+      console.error("Server startup failed:", {
+        name: error.name,
+        code: error.code,
+      });
       process.exit(1);
     });
 }
