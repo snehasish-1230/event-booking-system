@@ -280,6 +280,18 @@ const userRoutes = require("./routes/userRoutes");
 const organizerRoutes = require("./routes/organizerRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+
+//new--
+console.log("ROUTE CHECK:", {
+  authRoutes: typeof authRoutes,
+  eventRoutes: typeof eventRoutes,
+  registrationRoutes: typeof registrationRoutes,
+  uploadRoutes: typeof uploadRoutes,
+  userRoutes: typeof userRoutes,
+  organizerRoutes: typeof organizerRoutes,
+  adminRoutes: typeof adminRoutes,
+  paymentRoutes: typeof paymentRoutes,
+});
 app.use("/api/auth", authRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/registrations", registrationRoutes);
