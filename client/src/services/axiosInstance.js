@@ -1,11 +1,8 @@
 import axios from 'axios';
-
-//new--
-const rawBaseUrl = import.meta.env.VITE_API_URL || '';
-const baseURL = rawBaseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+import { API_BASE_URL } from '../api';
 
 const axiosInstance = axios.create({
-   baseURL,
+  baseURL: API_BASE_URL,
   timeout: 15000,
   withCredentials: false,
 });
@@ -13,6 +10,10 @@ const axiosInstance = axios.create({
 // Attach token to every request if available
 axiosInstance.interceptors.request.use(
   (config) => {
+    if (config.url?.startsWith('/api/')) {
+      config.url = config.url.slice('/api'.length);
+    }
+
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -27,7 +28,7 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     const requestUrl = error.config?.url || '';
-    const isAuthEndpoint = requestUrl.includes('/api/auth/');
+    const isAuthEndpoint = /(^|\/)auth\//.test(requestUrl);
 
     if (error.response?.status === 401) {
       if (!isAuthEndpoint) {

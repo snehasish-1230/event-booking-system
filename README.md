@@ -224,11 +224,14 @@ ADMIN_SEED_NAME=Admin
 
 > Email verification and password reset require `SMTP_USER` and `SMTP_PASS` in every environment. For Gmail, use a Google App Password. Set `EMAIL_OTP_SECRET` to a long random secret if you want a dedicated HMAC key for OTP and reset-token hashes; otherwise the backend uses `JWT_SECRET`. Codes and reset credentials are never included in email-delivery logs or ordinary API responses.
 
-**client/.env** (optional — Vite proxies `/api` and `/uploads` to the configured backend in development)
+**client/.env** (optional — local development and production API URLs are configured separately)
 
 ```env
-VITE_API_URL=http://localhost:5002
+VITE_API_URL_LOCAL=http://localhost:5002/api
+VITE_API_URL=https://event-booking-system-yn5h.onrender.com/api
 ```
+
+Vite development uses `VITE_API_URL_LOCAL`; production builds use `VITE_API_URL`. Configure `VITE_API_URL` in the frontend host with the backend URL ending in `/api`.
 
 **3. Install dependencies:**
 
@@ -526,7 +529,7 @@ event-booking-system/
 | Start command | `npm start` |
 
 4. Add all environment variables from the table below
-5. Set `CLIENT_URL` to your Netlify frontend URL
+5. Set `CLIENT_URL` to the exact deployed frontend origin (for example, `https://your-site.netlify.app`; do not include a path). Add additional trusted origins as a comma-separated list if needed.
 
 ### Frontend (Netlify)
 
@@ -543,9 +546,10 @@ event-booking-system/
 
 | Variable | Value |
 | --- | --- |
-| `VITE_API_URL` | `https://your-backend-url.com` |
+| `VITE_API_URL` | `https://event-booking-system-yn5h.onrender.com/api` |
 
 > The `netlify.toml` and `_redirects` files are already configured for SPA routing.
+> Set the same `VITE_API_URL` build variable for Vercel. After changing it, trigger a new frontend deployment.
 
 ### Environment Variables
 
@@ -566,6 +570,8 @@ event-booking-system/
 | `UPLOAD_MAX_SIZE` | Max upload size in bytes | `5242880` (5MB) |
 | `ADMIN_SEED_EMAIL` | Admin email for seed script | — |
 | `ADMIN_SEED_PASSWORD` | Admin password for seed script | — |
+| `VITE_API_URL` | Production frontend API base URL (include `/api`) | `https://event-booking-system-yn5h.onrender.com/api` |
+| `VITE_API_URL_LOCAL` | Local development backend API base URL (include `/api`) | `http://localhost:5002/api` |
 | `ADMIN_SEED_NAME` | Admin display name for seed script | `Admin` |
 
 ### Development-only admin unlock
