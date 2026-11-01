@@ -3,7 +3,6 @@ dotenv.config();
 
 const express = require("express");
 const helmet = require("helmet");
-const cors = require("cors");
 const morgan = require("morgan");
 const mongoSanitize = require("express-mongo-sanitize");
 const path = require("path");
@@ -11,6 +10,7 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./config/swagger");
 
 const env = require("./config/env");
+const configureCors = require("./config/cors");
 const { version } = require("./package.json");
 const connectDB = require("./config/db");
 const { globalLimiter } = require("./middlewares/rateLimiter");
@@ -19,31 +19,7 @@ const { verifyConnection } = require("./utils/emailService");
 
 const app = express();
 
-// CORS — supports comma-separated CLIENT_URL for multiple origins
-const localDevelopmentOrigins =
-  env.NODE_ENV === "development"
-    ? ["http://localhost:5175", "http://localhost:5173"]
-    : [];
-const allowedOrigins = [
-  ...new Set([
-    ...localDevelopmentOrigins,
-    ...env.CLIENT_URL.split(",").map((o) => o.trim()).filter(Boolean),
-  ]),
-];
-
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // allow non-browser tools (Postman, curl) that send no origin
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-      cb(new Error(`CORS blocked: ${origin}`));
-    },
-    credentials: false,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    exposedHeaders: ["Retry-After"],
-  }),
-);
+configureCors(app, { nodeEnv: env.NODE_ENV, clientUrl: env.CLIENT_URL });
 
 // The deployed API runs behind one platform proxy; local development is direct.
 if (env.NODE_ENV === "production") {
