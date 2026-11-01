@@ -264,45 +264,41 @@ app.use(async (req, res, next) => {
 
 
 
-
-
-
-
-
-
-
+//new---
 // Route mounting
-const authRoutes = require("./routes/authRoutes");
-const eventRoutes = require("./routes/eventRoutes");
-//new-
-console.log("EVENT ROUTE FILE:", require.resolve("./routes/eventRoutes"));
-console.log("EVENT ROUTER TYPE:", typeof eventRoutes);
-const registrationRoutes = require("./routes/registrationRoutes");
-const uploadRoutes = require("./routes/uploadRoutes");
-const userRoutes = require("./routes/userRoutes");
-const organizerRoutes = require("./routes/organizerRoutes");
-const adminRoutes = require("./routes/adminRoutes");
-const paymentRoutes = require("./routes/paymentRoutes");
+const loadRouter = (name, mod) => {
+  // Accept a normal Express router, or a module wrapped as { default } / { router }
+  const candidate =
+    typeof mod === "function" ? mod : mod && (mod.default || mod.router);
 
+  if (typeof candidate !== "function") {
+    const keys = mod && typeof mod === "object" ? Object.keys(mod) : [];
+    throw new Error(
+      `[ROUTE LOAD ERROR] ${name} is not an Express router. ` +
+        `typeof=${typeof mod}, keys=[${keys.join(", ")}], node=${process.version}`
+    );
+  }
+  return candidate;
+};
 
-//new--
-console.log("EVENT ROUTES DEBUG:", {
-  type: typeof eventRoutes,
-  keys: Object.keys(eventRoutes || {}),
-  routerType: typeof eventRoutes?.router,
-  defaultType: typeof eventRoutes?.default,
-});
-//new--
-console.log("ROUTE CHECK:", {
-  authRoutes: typeof authRoutes,
-  eventRoutes: typeof eventRoutes,
-  registrationRoutes: typeof registrationRoutes,
-  uploadRoutes: typeof uploadRoutes,
-  userRoutes: typeof userRoutes,
-  organizerRoutes: typeof organizerRoutes,
-  adminRoutes: typeof adminRoutes,
-  paymentRoutes: typeof paymentRoutes,
-});
+const authRoutes = loadRouter("authRoutes", require("./routes/authRoutes"));
+const eventRoutes = loadRouter("eventRoutes", require("./routes/eventRoutes"));
+const registrationRoutes = loadRouter(
+  "registrationRoutes",
+  require("./routes/registrationRoutes")
+);
+const uploadRoutes = loadRouter("uploadRoutes", require("./routes/uploadRoutes"));
+const userRoutes = loadRouter("userRoutes", require("./routes/userRoutes"));
+const organizerRoutes = loadRouter(
+  "organizerRoutes",
+  require("./routes/organizerRoutes")
+);
+const adminRoutes = loadRouter("adminRoutes", require("./routes/adminRoutes"));
+const paymentRoutes = loadRouter(
+  "paymentRoutes",
+  require("./routes/paymentRoutes")
+);
+
 app.use("/api/auth", authRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/registrations", registrationRoutes);
@@ -311,6 +307,52 @@ app.use("/api/users", userRoutes);
 app.use("/api/organizer", organizerRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payments", paymentRoutes);
+
+
+
+
+
+
+// // Route mounting
+// const authRoutes = require("./routes/authRoutes");
+// const eventRoutes = require("./routes/eventRoutes");
+// //new-
+// console.log("EVENT ROUTE FILE:", require.resolve("./routes/eventRoutes"));
+// console.log("EVENT ROUTER TYPE:", typeof eventRoutes);
+// const registrationRoutes = require("./routes/registrationRoutes");
+// const uploadRoutes = require("./routes/uploadRoutes");
+// const userRoutes = require("./routes/userRoutes");
+// const organizerRoutes = require("./routes/organizerRoutes");
+// const adminRoutes = require("./routes/adminRoutes");
+// const paymentRoutes = require("./routes/paymentRoutes");
+
+
+// //new--
+// console.log("EVENT ROUTES DEBUG:", {
+//   type: typeof eventRoutes,
+//   keys: Object.keys(eventRoutes || {}),
+//   routerType: typeof eventRoutes?.router,
+//   defaultType: typeof eventRoutes?.default,
+// });
+// //new--
+// console.log("ROUTE CHECK:", {
+//   authRoutes: typeof authRoutes,
+//   eventRoutes: typeof eventRoutes,
+//   registrationRoutes: typeof registrationRoutes,
+//   uploadRoutes: typeof uploadRoutes,
+//   userRoutes: typeof userRoutes,
+//   organizerRoutes: typeof organizerRoutes,
+//   adminRoutes: typeof adminRoutes,
+//   paymentRoutes: typeof paymentRoutes,
+// });
+// app.use("/api/auth", authRoutes);
+// app.use("/api/events", eventRoutes);
+// app.use("/api/registrations", registrationRoutes);
+// app.use("/api/upload", uploadRoutes);
+// app.use("/api/users", userRoutes);
+// app.use("/api/organizer", organizerRoutes);
+// app.use("/api/admin", adminRoutes);
+// app.use("/api/payments", paymentRoutes);
 
 // 404 handler
 app.use((_req, _res, next) => {
