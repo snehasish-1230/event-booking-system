@@ -279,10 +279,26 @@ app.use((_req, _res, next) => {
 app.use(errorHandler);
 
 // Connect to DB, then start server
-connectDB().then(() => {
-  verifyConnection();
+// connectDB().then(() => {
+//   verifyConnection();
 
-  app.listen(env.PORT, () => {
-    console.log(`Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
-  });
+//   app.listen(env.PORT, () => {
+//     console.log(`Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
+//   });
+// });
+
+
+
+
+//new--
+// Vercel serverless handler
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
+
+module.exports = app;
