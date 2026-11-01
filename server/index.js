@@ -274,6 +274,9 @@ app.use(async (req, res, next) => {
 // Route mounting
 const authRoutes = require("./routes/authRoutes");
 const eventRoutes = require("./routes/eventRoutes");
+//new-
+console.log("EVENT ROUTE FILE:", require.resolve("./routes/eventRoutes"));
+console.log("EVENT ROUTER TYPE:", typeof eventRoutes);
 const registrationRoutes = require("./routes/registrationRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const userRoutes = require("./routes/userRoutes");
