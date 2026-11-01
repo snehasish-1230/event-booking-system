@@ -281,6 +281,14 @@ const organizerRoutes = require("./routes/organizerRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 
+
+//new--
+console.log("EVENT ROUTES DEBUG:", {
+  type: typeof eventRoutes,
+  keys: Object.keys(eventRoutes || {}),
+  routerType: typeof eventRoutes?.router,
+  defaultType: typeof eventRoutes?.default,
+});
 //new--
 console.log("ROUTE CHECK:", {
   authRoutes: typeof authRoutes,
