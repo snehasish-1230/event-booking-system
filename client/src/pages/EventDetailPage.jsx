@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { format, isPast, differenceInHours, differenceInMinutes } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -6,7 +6,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { getEventBySlug, getEvents } from '../services/eventService';
 import { registerForEvent, cancelRegistration } from '../services/registrationService';
 import EventCard from '../components/ui/EventCard';
+import EventImage from '../components/ui/EventImage';
 import { formatCurrency } from '../utils/formatters';
+import { isPaidEvent } from '../utils/eventPricing';
 import useDocumentTitle from '../hooks/useDocumentTitle';
 
 const CATEGORY_COLORS = {
@@ -38,6 +40,15 @@ const TAG_COLORS = [
   'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
 ];
 
+const TEAM_MODE_SIZES = { SOLO: 1, DUO: 2, TRIO: 3, SQUAD: 4 };
+const getEventTeamMode = (event) => {
+  const declaredMode = String(event?.teamMode || event?.gameMode || '').toUpperCase();
+  if (TEAM_MODE_SIZES[declaredMode]) return declaredMode;
+  return Object.keys(TEAM_MODE_SIZES).find(
+    (mode) => TEAM_MODE_SIZES[mode] === Number(event?.teamSize)
+  ) || '';
+};
+
 const getCapacityColor = (percentage) => {
   if (percentage >= 90) return 'bg-danger-500';
   if (percentage >= 70) return 'bg-warning-500';
@@ -65,8 +76,12 @@ const EventDetailPage = () => {
   const [notFound, setNotFound] = useState(false);
   const [registrationLoading, setRegistrationLoading] = useState(false);
   const [notes, setNotes] = useState('');
+  const [players, setPlayers] = useState([]);
+  const [playerErrors, setPlayerErrors] = useState([]);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const registrationLockRef = useRef(false);
+  const eventTeamMode = getEventTeamMode(event);
 
   useDocumentTitle(event?.title || 'Event Detail');
 
@@ -111,6 +126,27 @@ const EventDetailPage = () => {
     fetchEvent();
   }, [fetchEvent]);
 
+  useEffect(() => {
+    if (!showRegisterModal) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showRegisterModal]);
+
+  useEffect(() => {
+    const playerCount = TEAM_MODE_SIZES[eventTeamMode] || 0;
+    setPlayers(
+      Array.from({ length: playerCount }, (_, index) => ({
+        playerName: index === 0 ? user?.name || '' : '',
+        freeFireUid: '',
+      }))
+    );
+    setPlayerErrors([]);
+  }, [event?._id, eventTeamMode, user?.name]);
+
   const eventDate = event ? new Date(event.date) : null;
   const endDate = event?.endDate ? new Date(event.endDate) : null;
   const isEventPast = eventDate ? isPast(eventDate) : false;
@@ -124,6 +160,7 @@ const EventDetailPage = () => {
   );
   const userRegistration = event?.userRegistration || null;
   const isRegistered = !!userRegistration;
+  const paidEvent = isPaidEvent(event);
 
   const categoryKey = event?.category?.toLowerCase();
   const categoryColor = CATEGORY_COLORS[categoryKey] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
@@ -141,19 +178,82 @@ const EventDetailPage = () => {
   const isOnlineEvent = onlineKeywords.test(fullAddress);
   const mapsUrl = `https://maps.google.com/?q=${encodeURIComponent(fullAddress)}`;
 
+  const handlePlayerChange = (index, field, value) => {
+    setPlayers((current) =>
+      current.map((player, playerIndex) =>
+        playerIndex === index ? { ...player, [field]: value } : player
+      )
+    );
+    setPlayerErrors((current) =>
+      current.map((errors, playerIndex) =>
+        playerIndex === index ? { ...errors, [field]: '' } : errors
+      )
+    );
+  };
+
   const handleRegister = async () => {
+    if (registrationLockRef.current) return;
+    const roster = players.map((player) => ({
+      playerName: player.playerName.trim(),
+      freeFireUid: player.freeFireUid.trim(),
+    }));
+    const rosterErrors = roster.map((player) => ({
+      playerName:
+        player.playerName.length < 2 || player.playerName.length > 50
+          ? 'Enter a player name between 2 and 50 characters.'
+          : '',
+      freeFireUid: /^\d{1,20}$/.test(player.freeFireUid)
+        ? ''
+        : 'Enter a numeric UID with up to 20 digits.',
+    }));
+    const uids = roster.map((player) => player.freeFireUid);
+    if (new Set(uids).size !== uids.length) {
+      rosterErrors.forEach((errors, index) => {
+        if (uids.filter((uid) => uid === uids[index]).length > 1) {
+          errors.freeFireUid = 'Each player must have a unique UID.';
+        }
+      });
+    }
+    if (rosterErrors.some((errors) => errors.playerName || errors.freeFireUid)) {
+      setPlayerErrors(rosterErrors);
+      return;
+    }
+
+    registrationLockRef.current = true;
     setRegistrationLoading(true);
     try {
-      await registerForEvent(event._id, { notes });
+      const response = await registerForEvent(event._id, {
+        notes,
+        ...(eventTeamMode && {
+          teamMode: eventTeamMode,
+          gameMode: eventTeamMode,
+          teamSize: TEAM_MODE_SIZES[eventTeamMode],
+          players: roster,
+        }),
+      });
+      const regId = response.data?.registration?._id || response.data?._id;
+
+      if (paidEvent) {
+        if (!regId) {
+          throw new Error('Registration was created, but the server did not return its ID. Please check My Tickets before trying again.');
+        }
+        toast.success('Registration created! Please complete payment verification.');
+        setShowRegisterModal(false);
+        setNotes('');
+        navigate(`/payments?bookingId=${regId}`);
+        return;
+      }
+
       toast.success('Registration confirmed! Check your email for confirmation.');
       setShowRegisterModal(false);
       setNotes('');
       await fetchEvent();
     } catch (err) {
-      const message = err.response?.data?.message || 'Registration failed. Please try again.';
+      const message = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
       toast.error(message);
     } finally {
       setRegistrationLoading(false);
+      registrationLockRef.current = false;
     }
   };
 
@@ -229,15 +329,12 @@ const EventDetailPage = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* ═══════════════ EVENT HEADER ═══════════════ */}
       <section className="relative h-72 sm:h-96 overflow-hidden">
-        {event.image ? (
-          <img
-            src={event.image}
-            alt={event.title}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className={`w-full h-full bg-linear-to-br ${CATEGORY_GRADIENTS[gradientIndex]}`} />
-        )}
+        <EventImage
+          src={event.image}
+          alt={event.title}
+          className="w-full h-full object-cover"
+          fallback={<div className={`w-full h-full bg-linear-to-br ${CATEGORY_GRADIENTS[gradientIndex]}`} />}
+        />
 
         {/* Dark overlay */}
         <div className="absolute inset-0 bg-black/50" />
@@ -397,7 +494,7 @@ const EventDetailPage = () => {
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(event.price || 0, event.currency || 'USD')}
+                      {formatCurrency(event.price || 0)}
                     </p>
                   </div>
                 </div>
@@ -413,7 +510,7 @@ const EventDetailPage = () => {
                 {/* Price Display */}
                 <div className="text-center mb-5">
                   <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                    {formatCurrency(event.price || 0, event.currency || 'USD')}
+                    {formatCurrency(event.price || 0)}
                   </p>
                 </div>
 
@@ -587,54 +684,130 @@ const EventDetailPage = () => {
 
       {/* ═══════════════ REGISTER MODAL ═══════════════ */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowRegisterModal(false)} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              Confirm Registration
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Are you sure you want to register for <span className="font-semibold text-gray-900 dark:text-white">{event.title}</span>?
-            </p>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-registration-title"
+            className="relative flex max-h-[90vh] min-h-0 w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl supports-[height:100dvh]:max-h-[90dvh] dark:bg-gray-800"
+          >
+            <header className="shrink-0 px-6 pt-6">
+              <h3 id="confirm-registration-title" className="text-xl font-bold text-gray-900 dark:text-white">
+                Confirm Registration
+              </h3>
+            </header>
 
-            {/* Event summary */}
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500 dark:text-gray-400">Date</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {format(new Date(event.date), 'MMM dd, yyyy')}
-                </span>
-              </div>
-              {(venue || city) && (
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-4 pt-2">
+              <p className="mb-4 text-gray-600 dark:text-gray-400">
+                Are you sure you want to register for{' '}
+                <span className="font-semibold text-gray-900 dark:text-white">
+                  {event.title}
+                </span>?
+              </p>
+
+              {eventTeamMode && (
+                <section className="mb-4 space-y-3" aria-labelledby="team-roster-title">
+                  <div>
+                    <h4 id="team-roster-title" className="font-semibold text-gray-900 dark:text-white">
+                      {eventTeamMode} team roster ({TEAM_MODE_SIZES[eventTeamMode]} player{TEAM_MODE_SIZES[eventTeamMode] === 1 ? '' : 's'})
+                    </h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Enter each player&apos;s in-game name and Free Fire UID. The account registering is the team contact.
+                    </p>
+                  </div>
+                  {players.map((player, index) => (
+                    <div
+                      key={`${event._id}-player-${index}`}
+                      className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-600 sm:grid-cols-2"
+                    >
+                      <div>
+                        <label
+                          htmlFor={`playerName-${index}`}
+                          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                        >
+                          {index === 0 ? 'Team Leader' : `Player ${index + 1}`} name
+                        </label>
+                        <input
+                          id={`playerName-${index}`}
+                          value={player.playerName}
+                          onChange={(e) => handlePlayerChange(index, 'playerName', e.target.value)}
+                          maxLength={50}
+                          autoComplete="off"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        />
+                        {playerErrors[index]?.playerName && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">
+                            {playerErrors[index].playerName}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label
+                          htmlFor={`playerUid-${index}`}
+                          className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                        >
+                          {index === 0 ? 'Team Leader' : `Player ${index + 1}`} Free Fire UID
+                        </label>
+                        <input
+                          id={`playerUid-${index}`}
+                          value={player.freeFireUid}
+                          onChange={(e) => handlePlayerChange(index, 'freeFireUid', e.target.value)}
+                          inputMode="numeric"
+                          maxLength={20}
+                          autoComplete="off"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        />
+                        {playerErrors[index]?.freeFireUid && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">
+                            {playerErrors[index].freeFireUid}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              )}
+
+              {/* Event summary */}
+              <div className="mb-4 space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Location</span>
-                  <span className="font-medium text-gray-900 dark:text-white text-right max-w-[200px] truncate">
-                    {venue || city}
+                  <span className="text-gray-500 dark:text-gray-400">Date</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {format(new Date(event.date), 'MMM dd, yyyy')}
                   </span>
                 </div>
-              )}
-              <div className="flex justify-between text-sm border-t border-gray-200 dark:border-gray-600 pt-2">
-                <span className="text-gray-500 dark:text-gray-400">Price</span>
-                <span className="font-bold text-lg text-gray-900 dark:text-white">
-                  {formatCurrency(event.price || 0, event.currency || 'USD')}
-                </span>
+                {(venue || city) && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">Location</span>
+                    <span className="max-w-[200px] truncate text-right font-medium text-gray-900 dark:text-white">
+                      {venue || city}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-gray-200 pt-2 text-sm dark:border-gray-600">
+                  <span className="text-gray-500 dark:text-gray-400">Price</span>
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">
+                    {formatCurrency(event.price || 0)}
+                  </span>
+                </div>
               </div>
+
+              {/* Payment notice for paid events */}
+              {paidEvent && (
+                <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                  <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  <p className="text-sm text-amber-800 dark:text-amber-300">
+                    Payment of <span className="font-semibold">{formatCurrency(event.price)}</span> is required. You will be redirected to scan the merchant UPI QR code and submit your transaction ID for verification.
+                  </p>
+                </div>
+              )}
             </div>
 
-            {/* Payment notice for paid events */}
-            {event.price > 0 && (
-              <div className="flex items-start gap-2.5 p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                </svg>
-                <p className="text-sm text-amber-800 dark:text-amber-300">
-                  Payment of <span className="font-semibold">{formatCurrency(event.price, event.currency || 'USD')}</span> will be collected at the venue. By confirming, you reserve your spot.
-                </p>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
+            <footer className="sticky bottom-0 flex shrink-0 items-center gap-3 border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-800">
               <button
                 onClick={() => setShowRegisterModal(false)}
                 disabled={registrationLoading}
@@ -652,14 +825,14 @@ const EventDetailPage = () => {
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Registering...
                   </>
-                ) : event.price > 0 ? (
-                  `Confirm & Reserve (${formatCurrency(event.price, event.currency || 'USD')})`
+                ) : paidEvent ? (
+                  'Continue to Payment'
                 ) : (
                   'Confirm Registration'
                 )}
               </button>
-            </div>
-          </div>
+            </footer>
+          </section>
         </div>
       )}
 

@@ -22,6 +22,11 @@ const STATUS_CONFIG = {
     },
   },
   registration: {
+    pending: {
+      label: 'Awaiting Payment',
+      classes: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+      dot: 'bg-amber-500',
+    },
     confirmed: {
       label: 'Confirmed',
       classes: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',

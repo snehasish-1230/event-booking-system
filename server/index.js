@@ -1,32 +1,60 @@
-const dotenv = require('dotenv');
+const dotenv = require("dotenv");
 dotenv.config();
 
-const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const morgan = require('morgan');
-const mongoSanitize = require('express-mongo-sanitize');
-const path = require('path');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./config/swagger');
+const express = require("express");
+const helmet = require("helmet");
+const cors = require("cors");
+const morgan = require("morgan");
+const mongoSanitize = require("express-mongo-sanitize");
+const path = require("path");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./config/swagger");
 
-const env = require('./config/env');
-const { version } = require('./package.json');
-const connectDB = require('./config/db');
-const { globalLimiter } = require('./middlewares/rateLimiter');
-const errorHandler = require('./middlewares/errorHandler');
-const { verifyConnection } = require('./utils/emailService');
+const env = require("./config/env");
+const { version } = require("./package.json");
+const connectDB = require("./config/db");
+const { globalLimiter } = require("./middlewares/rateLimiter");
+const errorHandler = require("./middlewares/errorHandler");
+const { verifyConnection } = require("./utils/emailService");
 
 const app = express();
 
-// Trust first proxy (Render, Heroku, etc.) so express-rate-limit reads real client IP
-app.set('trust proxy', 1);
+// CORS — supports comma-separated CLIENT_URL for multiple origins
+const localDevelopmentOrigins =
+  env.NODE_ENV === "development"
+    ? ["http://localhost:5175", "http://localhost:5173"]
+    : [];
+const allowedOrigins = [
+  ...new Set([
+    ...localDevelopmentOrigins,
+    ...env.CLIENT_URL.split(",").map((o) => o.trim()).filter(Boolean),
+  ]),
+];
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // allow non-browser tools (Postman, curl) that send no origin
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: false,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Retry-After"],
+  }),
+);
+
+// The deployed API runs behind one platform proxy; local development is direct.
+if (env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
 
 // Disable x-powered-by header
-app.disable('x-powered-by');
+app.disable("x-powered-by");
 
 // Security headers with CSP
-if (env.NODE_ENV === 'production') {
+if (env.NODE_ENV === "production") {
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -34,7 +62,7 @@ if (env.NODE_ENV === 'production') {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'blob:'],
+          imgSrc: ["'self'", "data:", "blob:"],
           connectSrc: ["'self'"],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
@@ -42,30 +70,15 @@ if (env.NODE_ENV === 'production') {
         },
       },
       crossOriginEmbedderPolicy: false,
-    })
+    }),
   );
 } else {
   app.use(helmet({ contentSecurityPolicy: false }));
 }
 
-// CORS — supports comma-separated CLIENT_URL for multiple origins
-const allowedOrigins = env.CLIENT_URL.split(',').map((o) => o.trim()).filter(Boolean);
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-  })
-);
-
 // Body parsing with size limits
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
 // Mongo sanitize (Express 5 compatible — do NOT use mongoSanitize() directly)
 app.use((req, _res, next) => {
@@ -75,36 +88,40 @@ app.use((req, _res, next) => {
 });
 
 // HTTP request logging
-if (env.NODE_ENV === 'production') {
-  app.use(morgan('combined'));
+if (env.NODE_ENV === "production") {
+  app.use(morgan("combined"));
 } else {
-  app.use(morgan('dev'));
+  app.use(morgan("dev"));
 }
 
 // Global rate limiter for all /api routes
-app.use('/api', globalLimiter);
+app.use("/api", globalLimiter);
 
 // Static files — block directory listing and dotfiles
 app.use(
-  '/uploads',
-  express.static(path.join(__dirname, 'uploads'), {
-    dotfiles: 'deny',
+  "/uploads",
+  (req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(path.join(__dirname, "uploads"), {
+    dotfiles: "deny",
     index: false,
-  })
+  }),
 );
 
 // Swagger API Documentation
 app.use(
-  '/api-docs',
+  "/api-docs",
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Event Booking System — API Docs',
-  })
+    customCss: ".swagger-ui .topbar { display: none }",
+    customSiteTitle: "Event Booking System — API Docs",
+  }),
 );
 
 // Root welcome page
-app.get('/', (_req, res) => {
+app.get("/", (_req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -225,33 +242,35 @@ app.get('/', (_req, res) => {
 });
 
 // Health check
-app.get('/api/health', (_req, res) => {
+app.get("/api/health", (_req, res) => {
   res.status(200).json({
     success: true,
-    message: 'API is running',
+    message: "API is running",
     timestamp: new Date().toISOString(),
   });
 });
 
 // Route mounting
-const authRoutes = require('./routes/authRoutes');
-const eventRoutes = require('./routes/eventRoutes');
-const registrationRoutes = require('./routes/registrationRoutes');
-const uploadRoutes = require('./routes/uploadRoutes');
-const userRoutes = require('./routes/userRoutes');
-const organizerRoutes = require('./routes/organizerRoutes');
-const adminRoutes = require('./routes/adminRoutes');
-app.use('/api/auth', authRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/registrations', registrationRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/organizer', organizerRoutes);
-app.use('/api/admin', adminRoutes);
+const authRoutes = require("./routes/authRoutes");
+const eventRoutes = require("./routes/eventRoutes");
+const registrationRoutes = require("./routes/registrationRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
+const userRoutes = require("./routes/userRoutes");
+const organizerRoutes = require("./routes/organizerRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
+app.use("/api/auth", authRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/registrations", registrationRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/organizer", organizerRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // 404 handler
 app.use((_req, _res, next) => {
-  const error = new Error('Route not found');
+  const error = new Error("Route not found");
   error.statusCode = 404;
   next(error);
 });
@@ -264,8 +283,6 @@ connectDB().then(() => {
   verifyConnection();
 
   app.listen(env.PORT, () => {
-    console.log(
-      `Server running in ${env.NODE_ENV} mode on port ${env.PORT}`
-    );
+    console.log(`Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
   });
 });

@@ -449,7 +449,7 @@ const getAllRegistrations = async (req, res, next) => {
       filter.user = user;
     }
 
-    if (status && ['confirmed', 'cancelled', 'attended'].includes(status)) {
+    if (status && ['pending', 'confirmed', 'cancelled', 'attended'].includes(status)) {
       filter.status = status;
     }
 

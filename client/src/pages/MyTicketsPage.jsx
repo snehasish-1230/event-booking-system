@@ -4,21 +4,26 @@ import { format, isPast } from 'date-fns';
 import toast from 'react-hot-toast';
 import { getMyRegistrations, cancelRegistration } from '../services/registrationService';
 import useDocumentTitle from '../hooks/useDocumentTitle';
+import EventImage from '../components/ui/EventImage';
+import { isPaidEvent } from '../utils/eventPricing';
 
 const TABS = [
   { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending Payment' },
   { key: 'upcoming', label: 'Upcoming' },
   { key: 'past', label: 'Past' },
   { key: 'cancelled', label: 'Cancelled' },
 ];
 
 const STATUS_STYLES = {
+  pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
   cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
   attended: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
 };
 
 const STATUS_LABELS = {
+  pending: 'Awaiting Payment',
   confirmed: 'Confirmed',
   cancelled: 'Cancelled',
   attended: 'Attended',
@@ -67,11 +72,14 @@ const MyTicketsPage = () => {
     ).length;
     const attended = registrations.filter((r) => r.status === 'attended').length;
     const cancelled = registrations.filter((r) => r.status === 'cancelled').length;
-    return { upcoming, attended, cancelled };
+    const pending = registrations.filter((r) => r.status === 'pending').length;
+    return { upcoming, attended, cancelled, pending };
   }, [registrations]);
 
   const filteredRegistrations = useMemo(() => {
     switch (activeTab) {
+      case 'pending':
+        return registrations.filter((r) => r.status === 'pending');
       case 'upcoming':
         return registrations.filter(
           (r) => r.status === 'confirmed' && r.event?.date && !isPast(new Date(r.event.date))
@@ -89,6 +97,7 @@ const MyTicketsPage = () => {
 
   const tabCounts = useMemo(() => ({
     all: registrations.length,
+    pending: registrations.filter((r) => r.status === 'pending').length,
     upcoming: registrations.filter(
       (r) => r.status === 'confirmed' && r.event?.date && !isPast(new Date(r.event.date))
     ).length,
@@ -156,6 +165,12 @@ const MyTicketsPage = () => {
           description: 'No cancelled registrations.',
           showCta: false,
         };
+      case 'pending':
+        return {
+          title: 'No payments awaiting verification',
+          description: 'Registrations awaiting payment or review will appear here.',
+          showCta: false,
+        };
       default:
         return {
           title: 'No tickets yet',
@@ -181,7 +196,7 @@ const MyTicketsPage = () => {
 
         {/* Tabs skeleton */}
         <div className="flex gap-2 mb-8">
-          {[...Array(4)].map((_, i) => (
+          {[...Array(5)].map((_, i) => (
             <div key={i} className="h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           ))}
         </div>
@@ -260,7 +275,7 @@ const MyTicketsPage = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-1.5 mb-8 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
+      <div className="flex flex-wrap gap-1.5 mb-8 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
         {TABS.map((tab) => (
           <button
             key={tab.key}
@@ -337,10 +352,10 @@ const MyTicketsPage = () => {
                     className="sm:w-40 h-32 sm:h-auto shrink-0 block overflow-hidden"
                   >
                     {event.image ? (
-                      <img
+                      <EventImage
                         src={event.image}
                         alt={event.title}
-                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
                       />
                     ) : (
                       <div className={`w-full h-full min-h-32 bg-linear-to-br ${getGradient(event.title)} flex items-center justify-center`}>
@@ -368,6 +383,23 @@ const MyTicketsPage = () => {
                         <span className={`shrink-0 px-2.5 py-0.5 text-xs font-semibold rounded-full ${STATUS_STYLES[registration.status]}`}>
                           {STATUS_LABELS[registration.status]}
                         </span>
+                        {isPaidEvent(event) && registration.status !== 'cancelled' && (
+                          <span
+                            className={`shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full ${
+                              registration.paymentStatus === 'APPROVED'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                : registration.paymentStatus === 'REJECTED'
+                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 animate-pulse'
+                            }`}
+                          >
+                            {registration.paymentStatus === 'APPROVED'
+                              ? 'Paid'
+                              : registration.paymentStatus === 'REJECTED'
+                              ? 'Payment Rejected'
+                              : 'Payment Pending'}
+                          </span>
+                        )}
                       </div>
 
                       {/* Date */}
@@ -395,6 +427,51 @@ const MyTicketsPage = () => {
                           </svg>
                           <span className="truncate">{locationStr}</span>
                         </div>
+                      )}
+
+                      {registration.players?.length > 0 && (
+                        <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-700/40">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            {registration.gameMode || registration.teamMode || event.gameMode || event.teamMode} · {registration.teamSize || event.teamSize || registration.players.length} player(s)
+                          </p>
+                          <ul className="mt-1 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                            {registration.players.map((player, index) => (
+                              <li key={`${registration._id}-${player.freeFireUid}`}>
+                                Player {index + 1}: {player.playerName} · UID {player.freeFireUid}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {registration.room && (
+                        <div className="mt-3 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm dark:border-primary-800 dark:bg-primary-950/30">
+                          <p className="font-semibold text-primary-900 dark:text-primary-200">Room Details Available</p>
+                          <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-primary-900 dark:text-primary-100">
+                            <span>Room ID</span>
+                            <span className="inline-flex items-center gap-2 font-mono font-semibold">
+                              {registration.room.roomId}
+                              <button type="button" onClick={() => handleCopyCode(registration.room.roomId)} aria-label="Copy room ID" className="text-primary-700 underline dark:text-primary-300">Copy</button>
+                            </span>
+                            <span>Password</span>
+                            <span className="inline-flex items-center gap-2 font-mono font-semibold">
+                              {registration.room.roomPassword}
+                              <button type="button" onClick={() => handleCopyCode(registration.room.roomPassword)} aria-label="Copy room password" className="text-primary-700 underline dark:text-primary-300">Copy</button>
+                            </span>
+                            <span>Team slot</span><span className="font-semibold">{registration.room.slotNumber}</span>
+                            <span>Match time</span><span>{format(new Date(registration.room.matchAt), 'MMM dd, yyyy · h:mm a')}</span>
+                          </div>
+                          {registration.room.instructions && (
+                            <p className="mt-2 border-t border-primary-200 pt-2 text-primary-900 dark:border-primary-800 dark:text-primary-100">
+                              Instructions: {registration.room.instructions}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {event.teamMode && registration.status === 'confirmed' && !registration.room && (
+                        <p className="mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-gray-700/40 dark:text-gray-300">
+                          Room Details Not Published Yet
+                        </p>
                       )}
                     </div>
 

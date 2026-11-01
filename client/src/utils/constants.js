@@ -30,10 +30,7 @@ export const USER_ROLES = [
 ];
 
 export const CURRENCIES = [
-  { value: 'USD', label: 'US Dollar', symbol: '$' },
-  { value: 'EUR', label: 'Euro', symbol: '€' },
-  { value: 'TRY', label: 'Turkish Lira', symbol: '₺' },
-  { value: 'GBP', label: 'British Pound', symbol: '£' },
+  { value: 'INR', label: 'Indian Rupee', symbol: '₹' },
 ];
 
 export const SORT_OPTIONS = [

@@ -1,19 +1,26 @@
 import { useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import * as uploadService from '../../services/uploadService';
+import EventImage from './EventImage';
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
-const ImageUpload = ({ value, onChange, disabled = false }) => {
+const ImageUpload = ({
+  value,
+  onChange,
+  onUploadingChange,
+  disabled = false,
+}) => {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef(null);
+  const uploadInProgressRef = useRef(false);
 
   const validateFile = (file) => {
     if (!ALLOWED_TYPES.includes(file.type)) {
-      toast.error('Only JPEG, PNG, WebP and GIF files are allowed');
+      toast.error('Only JPEG, PNG and WebP files are allowed');
       return false;
     }
     if (file.size > MAX_SIZE) {
@@ -25,13 +32,16 @@ const ImageUpload = ({ value, onChange, disabled = false }) => {
 
   const handleUpload = useCallback(
     async (file) => {
+      if (disabled || uploadInProgressRef.current) return;
       if (!validateFile(file)) return;
 
       const formData = new FormData();
       formData.append('image', file);
 
       try {
+        uploadInProgressRef.current = true;
         setUploading(true);
+        onUploadingChange?.(true);
         setProgress(0);
 
         const response = await uploadService.uploadImage(formData, (e) => {
@@ -40,17 +50,22 @@ const ImageUpload = ({ value, onChange, disabled = false }) => {
           }
         });
 
-        const imageUrl = response.data?.url || response.url || response.data;
+        const imageUrl = response?.data?.url ?? response?.url;
+        if (typeof imageUrl !== 'string' || !imageUrl.trim()) {
+          throw new Error('The upload response did not contain an image URL');
+        }
         onChange(imageUrl);
         toast.success('Image uploaded successfully');
-      } catch {
-        toast.error('Failed to upload image');
+      } catch (error) {
+        toast.error(error.message || 'Failed to upload image');
       } finally {
+        uploadInProgressRef.current = false;
         setUploading(false);
+        onUploadingChange?.(false);
         setProgress(0);
       }
     },
-    [onChange]
+    [disabled, onChange, onUploadingChange]
   );
 
   const handleFileSelect = (e) => {
@@ -85,10 +100,16 @@ const ImageUpload = ({ value, onChange, disabled = false }) => {
   if (value) {
     return (
       <div className="relative group rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-        <img
+        <EventImage
           src={value}
           alt="Event"
           className="w-full h-48 object-cover"
+          fallbackClassName="flex h-48 w-full items-center justify-center bg-gray-100 dark:bg-gray-800"
+          fallback={
+            <div className="flex h-48 w-full items-center justify-center bg-gray-100 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+              Image unavailable
+            </div>
+          }
         />
         {!disabled && (
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -157,7 +178,7 @@ const ImageUpload = ({ value, onChange, disabled = false }) => {
             {isDragging ? 'Drop image here' : 'Click or drag & drop to upload'}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            JPEG, PNG, WebP, GIF — Max 5MB
+            JPEG, PNG, WebP — Max 5MB
           </p>
         </div>
       )}

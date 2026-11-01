@@ -40,6 +40,24 @@ const sidebarLinks = [
       </svg>
     ),
   },
+  {
+    to: '/admin/payments',
+    label: 'Payments',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6H2.25m0 0v10.5m0-10.5h19.5m0 0v10.5m0-10.5a.75.75 0 0 0-.75-.75H18M2.25 16.5v.75c0 .414.336.75.75.75H6m15.75-1.5v.75c0 .414-.336.75-.75.75H18m0 0a3 3 0 0 1-3-3V12m0-1.5a3 3 0 0 1 3-3h3m-9 9a3 3 0 0 1-3-3V12m0-1.5a3 3 0 0 1 3-3h3" />
+      </svg>
+    ),
+  },
+  {
+    to: '/admin/room-management',
+    label: 'Room Management',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 1 0-5.967.493L3.53 12a2.25 2.25 0 0 0 0 3.182l1.06 1.06a2.25 2.25 0 0 0 3.182 0l1.06-1.06a2.25 2.25 0 0 0 0-3.182l-.53-.53 1.97-1.97a3 3 0 0 0 4.478-2.25h2.25v2.25h2.25V7.25h2.25V5.25h-5.75Z" />
+      </svg>
+    ),
+  },
 ];
 
 const sidebarLinkClasses = ({ isActive }) =>

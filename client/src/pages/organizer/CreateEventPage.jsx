@@ -16,20 +16,23 @@ const CreateEventPage = () => {
       const response = await eventService.createEvent(payload);
       const eventId = response.data?.event?._id || response.data?._id || response._id;
 
-      if (publishAfterSave && eventId) {
-        try {
-          await eventService.publishEvent(eventId);
-          toast.success('Event created and published!');
-        } catch {
-          toast.success('Event created as draft. Publishing failed — you can publish it later.');
+      if (publishAfterSave) {
+        if (!eventId) {
+          throw new Error('The server created the event but did not return its ID, so publishing could not continue.');
         }
+        await eventService.publishEvent(eventId);
+        toast.success('Event created and published!');
       } else {
         toast.success('Event saved as draft!');
       }
 
       navigate('/organizer/events');
     } catch (error) {
-      toast.error(error.message || 'Failed to create event');
+      const details = error.response?.data?.errors;
+      const message = Array.isArray(details) && details.length
+        ? details.map(({ field, message: detail }) => `${field}: ${detail}`).join('; ')
+        : error.message || 'Failed to create event';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }

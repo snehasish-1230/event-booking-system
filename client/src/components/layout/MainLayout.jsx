@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import ErrorBoundary from '../common/ErrorBoundary';
+import RegistrationPrompt from '../common/RegistrationPrompt';
 
 const MainLayout = () => {
   return (
@@ -13,6 +14,7 @@ const MainLayout = () => {
         </ErrorBoundary>
       </main>
       <Footer />
+      <RegistrationPrompt />
     </div>
   );
 };

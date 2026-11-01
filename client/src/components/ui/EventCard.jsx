@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { format, isPast } from 'date-fns';
 import { formatCurrency } from '../../utils/formatters';
+import { isPaidEvent } from '../../utils/eventPricing';
+import EventImage from './EventImage';
 
 const CATEGORY_COLORS = {
   conference: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -42,7 +44,6 @@ const EventCard = ({ event }) => {
     venue: topVenue,
     city: topCity,
     price,
-    currency,
     capacity = 0,
     registeredCount = 0,
     image,
@@ -74,23 +75,22 @@ const EventCard = ({ event }) => {
     >
       {/* Image */}
       <div className="relative h-48 overflow-hidden">
-        {image ? (
-          <img
-            src={image}
-            alt={title}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div
-            className={`w-full h-full bg-linear-to-br ${CATEGORY_GRADIENTS[gradientIndex]}
-                        flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}
-          >
-            <svg className="w-16 h-16 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-            </svg>
-          </div>
-        )}
+        <EventImage
+          src={image}
+          alt={title}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          fallback={
+            <div
+              className={`w-full h-full bg-linear-to-br ${CATEGORY_GRADIENTS[gradientIndex]}
+                          flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}
+            >
+              <svg className="w-16 h-16 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
+            </div>
+          }
+        />
 
         {/* Category Badge */}
         <span className={`absolute top-3 left-3 px-2.5 py-1 text-xs font-semibold rounded-full ${categoryColor}`}>
@@ -99,7 +99,7 @@ const EventCard = ({ event }) => {
 
         {/* Price Badge */}
         <span className="absolute top-3 right-3 px-2.5 py-1 text-xs font-bold rounded-full bg-white/90 dark:bg-gray-900/90 text-gray-900 dark:text-white shadow-sm">
-          {formatCurrency(price || 0, currency || 'USD')}
+          {isPaidEvent(event) ? formatCurrency(price) : 'FREE'}
         </span>
 
         {/* Sold Out Overlay */}

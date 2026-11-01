@@ -6,6 +6,7 @@ import * as eventService from '../../services/eventService';
 import StatusBadge from '../../components/ui/StatusBadge';
 import CapacityBar from '../../components/ui/CapacityBar';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
+import EventImage from '../../components/ui/EventImage';
 
 const CATEGORY_COLORS = {
   conference: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -261,7 +262,7 @@ const OrganizerEventsPage = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-gray-100 dark:bg-gray-700">
                           {event.image ? (
-                            <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+                            <EventImage src={event.image} alt={event.title} className="h-full w-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
                               <svg className="w-6 h-6 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -463,7 +464,7 @@ const MobileEventCard = ({ event, isOpen, onToggle, onAction, isLoading, dropdow
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-gray-100 dark:bg-gray-700">
             {event.image ? (
-              <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+              <EventImage src={event.image} alt={event.title} className="h-full w-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <svg className="w-7 h-7 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

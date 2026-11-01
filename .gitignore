@@ -33,3 +33,9 @@ npm-debug.log*
 # Build outputs
 dist/
 build/
+
+# Server uploaded files and payment screenshots
+server/uploads/*
+!server/uploads/.gitkeep
+server/uploads/paymentQR/*
+!server/uploads/paymentQR/.gitkeep

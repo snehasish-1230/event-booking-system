@@ -1,7 +1,11 @@
 const mongoose = require('mongoose');
 const Event = require('../models/Event');
+const Registration = require('../models/Registration');
+const Payment = require('../models/Payment');
 const AppError = require('../utils/AppError');
 const escapeRegex = require('../utils/escapeRegex');
+const { isPaidEvent } = require('../utils/eventPricing');
+const { getTeamFormat } = require('../utils/teamFormat');
 
 const ALLOWED_FIELDS = [
   'title',
@@ -11,7 +15,12 @@ const ALLOWED_FIELDS = [
   'time',
   'location',
   'capacity',
+  'minParticipants',
+  'teamMode',
+  'gameMode',
+  'teamSize',
   'price',
+  'pricingType',
   'currency',
   'category',
   'tags',
@@ -32,22 +41,129 @@ const pickAllowedFields = (source, fields) => {
   return result;
 };
 
+const normalizeTags = (tags) => {
+  if (tags === undefined) return undefined;
+  const values = Array.isArray(tags) ? tags : [tags];
+  return [...new Set(
+    values
+      .flatMap((tag) => (typeof tag === 'string' ? tag.split(',') : []))
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+  )].slice(0, 10);
+};
+
 /**
  * Check whether the requesting user owns the event or is an admin.
  */
 const isOwnerOrAdmin = (event, user) =>
   event.organizer.toString() === user._id.toString() || user.role === 'admin';
 
+const applyPricingUpdate = async (event, fields) => {
+  if (fields.price === undefined && fields.pricingType === undefined) return;
+
+  const currentPricingType = isPaidEvent(event) ? 'PAID' : 'FREE';
+  const pricingType =
+    fields.pricingType ??
+    (fields.price === undefined
+      ? currentPricingType
+      : Number(fields.price) > 0
+        ? 'PAID'
+        : 'FREE');
+  let price = Number(fields.price);
+  if (fields.price === undefined) {
+    if (pricingType === 'FREE') {
+      price = 0;
+    } else if (pricingType === currentPricingType) {
+      price = Number(event.price ?? 0);
+    } else {
+      price = undefined;
+    }
+  }
+
+  if (pricingType === 'FREE' && price !== 0) {
+    throw new AppError('FREE events must have a price of 0', 400);
+  }
+  if (pricingType === 'PAID' && !(price > 0)) {
+    throw new AppError('PAID events require a price greater than 0', 400);
+  }
+
+  const priceChanged = price !== Number(event.price ?? 0);
+  const pricingTypeChanged = pricingType !== currentPricingType;
+  if (priceChanged || pricingTypeChanged) {
+    const [activeRegistration, registrationIds] = await Promise.all([
+      Registration.exists({
+        event: event._id,
+        status: { $in: ['pending', 'confirmed', 'attended'] },
+      }),
+      Registration.distinct('_id', { event: event._id }),
+    ]);
+    const paymentHistory = registrationIds.length
+      ? await Payment.exists({ booking: { $in: registrationIds } })
+      : null;
+
+    if (activeRegistration || paymentHistory) {
+      throw new AppError(
+        'Pricing cannot be changed while active registrations or payment history exist',
+        409
+      );
+    }
+  }
+
+  fields.pricingType = pricingType;
+  fields.price = price;
+};
+
+const normalizeEventTeamFormat = (fields, currentEvent) => {
+  const hasTeamFormatInput =
+    fields.teamMode !== undefined ||
+    fields.gameMode !== undefined ||
+    fields.teamSize !== undefined;
+  if (!hasTeamFormatInput && currentEvent) return false;
+
+  const submitted = getTeamFormat({
+    teamMode:
+      fields.teamMode ||
+      (!fields.gameMode && fields.teamSize === undefined ? currentEvent?.teamMode : undefined),
+    gameMode:
+      fields.gameMode ||
+      (!fields.teamMode && fields.teamSize === undefined ? currentEvent?.gameMode : undefined),
+    teamSize:
+      fields.teamSize ??
+      (!fields.teamMode && !fields.gameMode ? currentEvent?.teamSize : undefined),
+  });
+  if (!submitted) {
+    throw new AppError('Team size and game mode must match (1/SOLO, 2/DUO, 3/TRIO, 4/SQUAD)', 400);
+  }
+  Object.assign(fields, submitted);
+  return Boolean(currentEvent && submitted.teamMode !== currentEvent.teamMode);
+};
+
 // @desc    Create a new event (draft)
 // @route   POST /api/events
 const createEvent = async (req, res, next) => {
   try {
     const fields = pickAllowedFields(req.body, ALLOWED_FIELDS);
+    if (fields.tags !== undefined) fields.tags = normalizeTags(fields.tags);
 
     if (new Date(fields.date) <= new Date()) {
       throw new AppError('Event date must be in the future', 400);
     }
 
+    fields.pricingType ??= Number(fields.price ?? 0) > 0 ? 'PAID' : 'FREE';
+    fields.price ??= 0;
+    fields.teamMode ??=
+      fields.gameMode ||
+      ({ 1: 'SOLO', 2: 'DUO', 3: 'TRIO', 4: 'SQUAD' }[Number(fields.teamSize)]) ||
+      'SOLO';
+    normalizeEventTeamFormat(fields);
+    if (fields.pricingType === 'FREE' && Number(fields.price) !== 0) {
+      throw new AppError('FREE events must have a price of 0', 400);
+    }
+    if (fields.pricingType === 'PAID' && !(Number(fields.price) > 0)) {
+      throw new AppError('PAID events require a price greater than 0', 400);
+    }
+    fields.price = Number(fields.price);
+    fields.currency = 'INR';
     fields.organizer = req.user._id;
     fields.status = 'draft';
 
@@ -81,23 +197,91 @@ const updateEvent = async (req, res, next) => {
     }
 
     const fields = pickAllowedFields(req.body, ALLOWED_FIELDS);
-
+    if (fields.tags !== undefined) fields.tags = normalizeTags(fields.tags);
+    const teamModeChanged = normalizeEventTeamFormat(fields, event);
     if (
-      fields.capacity !== undefined &&
-      fields.capacity < event.registeredCount
+      teamModeChanged &&
+      await Registration.exists({ event: event._id })
     ) {
       throw new AppError(
-        'Capacity cannot be reduced below current registrations',
+        'Team format cannot change after registrations have been created',
+        409
+      );
+    }
+    if (fields.price !== undefined || fields.pricingType !== undefined) {
+      await applyPricingUpdate(event, fields);
+      fields.currency = 'INR';
+    }
+
+    const updatedCapacity = Number(fields.capacity ?? event.capacity);
+    const updatedMinimum = Number(
+      fields.minParticipants ?? event.minParticipants ?? 1
+    );
+    if (updatedMinimum > updatedCapacity) {
+      throw new AppError(
+        'Minimum members cannot exceed event capacity',
         400
       );
     }
 
-    Object.assign(event, fields);
-    await event.save();
+    const activeRegistrationCount =
+      await Registration.getCapacityConsumingCount(event._id);
+    if (
+      fields.capacity !== undefined &&
+      Number(fields.capacity) !== event.capacity &&
+      Number(fields.capacity) < activeRegistrationCount
+    ) {
+      throw new AppError(
+        `Capacity cannot be set below ${activeRegistrationCount} active registration${activeRegistrationCount === 1 ? '' : 's'}.`,
+        400
+      );
+    }
+
+    let updatedEvent;
+    const capacityChanged =
+      fields.capacity !== undefined &&
+      Number(fields.capacity) !== event.capacity;
+    const pricingChanged =
+      fields.pricingType !== undefined &&
+      (fields.pricingType !== (isPaidEvent(event) ? 'PAID' : 'FREE') ||
+        Number(fields.price) !== Number(event.price ?? 0));
+    if (capacityChanged || pricingChanged || teamModeChanged) {
+      const registrationCountFilter =
+        event.registeredCount > 0
+          ? { registeredCount: event.registeredCount }
+          : {
+              $or: [
+                { registeredCount: 0 },
+                { registeredCount: { $exists: false } },
+              ],
+            };
+      updatedEvent = await Event.findOneAndUpdate(
+        {
+          _id: event._id,
+          status: { $ne: 'cancelled' },
+          ...(teamModeChanged && {
+            registeredCount: event.registeredCount ?? 0,
+          }),
+          ...registrationCountFilter,
+        },
+        fields,
+        { new: true, runValidators: true }
+      );
+      if (!updatedEvent) {
+        throw new AppError(
+          'Event registrations changed while updating. Refresh and try again.',
+          409
+        );
+      }
+    } else {
+      Object.assign(event, fields);
+      await event.save();
+      updatedEvent = event;
+    }
 
     res.status(200).json({
       success: true,
-      data: { event },
+      data: { event: updatedEvent },
     });
   } catch (err) {
     next(err);
@@ -373,9 +557,19 @@ const getEventById = async (req, res, next) => {
       }
     }
 
+    const activeRegistrationCount =
+      req.user &&
+      (req.user.role === 'admin' ||
+        event.organizer?._id?.toString() === req.user._id.toString())
+        ? await Registration.getCapacityConsumingCount(event._id)
+        : undefined;
+
     res.status(200).json({
       success: true,
-      data: { event },
+      data: {
+        event,
+        ...(activeRegistrationCount !== undefined && { activeRegistrationCount }),
+      },
     });
   } catch (err) {
     next(err);

@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import useDocumentTitle from '../hooks/useDocumentTitle';
 import toast from 'react-hot-toast';
+import { resendEmailOtp, verifyEmail } from '../services/authService';
+import { isValidPhoneNumber } from '../utils/phoneValidation';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -59,6 +61,8 @@ const RegisterPage = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    phone: '',
+    whatsappNumber: '',
     role: 'attendee',
     agreeTerms: false,
   });
@@ -67,8 +71,38 @@ const RegisterPage = () => {
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationError, setVerificationError] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [verificationComplete, setVerificationComplete] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [otpSecondsRemaining, setOtpSecondsRemaining] = useState(0);
+  const [resendSecondsRemaining, setResendSecondsRemaining] = useState(0);
+  const submitLockRef = useRef(false);
+  const verifyLockRef = useRef(false);
+  const resendLockRef = useRef(false);
 
   const passwordStrength = getPasswordStrength(formData.password);
+
+  useEffect(() => {
+    if (!verificationEmail || verificationComplete) return undefined;
+    const intervalId = window.setInterval(() => {
+      setOtpSecondsRemaining((remaining) => Math.max(0, remaining - 1));
+      setResendSecondsRemaining((remaining) => Math.max(0, remaining - 1));
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [verificationEmail, verificationComplete]);
+
+  useEffect(() => {
+    if (!verificationComplete) return undefined;
+    const timeoutId = window.setTimeout(
+      () => navigate('/auth/login', { replace: true }),
+      1800
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [navigate, verificationComplete]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -121,6 +155,18 @@ const RegisterPage = () => {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    } else if (!isValidPhoneNumber(formData.phone)) {
+      newErrors.phone = 'Enter a valid phone number, including country code for international numbers';
+    }
+
+    if (!formData.whatsappNumber.trim()) {
+      newErrors.whatsappNumber = 'WhatsApp number is required';
+    } else if (!isValidPhoneNumber(formData.whatsappNumber)) {
+      newErrors.whatsappNumber = 'Enter a valid WhatsApp number, including country code for international numbers';
+    }
+
     if (!formData.agreeTerms) {
       newErrors.agreeTerms = 'You must agree to the Terms of Service';
     }
@@ -131,26 +177,48 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLockRef.current) return;
     if (!validate()) return;
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     setApiError('');
 
     try {
-      await register({
+      const response = await register({
         name: formData.name.trim(),
         email: formData.email,
         password: formData.password,
+        phone: formData.phone.trim(),
+        whatsappNumber: formData.whatsappNumber.trim(),
         role: formData.role,
       });
 
-      toast.success('Account created successfully!');
-      navigate('/', { replace: true });
+      setVerificationEmail(response.data?.email || formData.email.trim());
+      setOtpSecondsRemaining(response.data?.expiresInSeconds || 300);
+      setResendSecondsRemaining(response.data?.resendCooldownSeconds || 60);
+      setVerificationMessage(
+        response.data?.emailSubmissionStatus === 'submitted'
+          ? 'Verification email submitted. Please check your Inbox and Spam folder.'
+          : response.message || 'If this address is eligible for verification, a code will be sent.'
+      );
+      setFormData((previous) => ({
+        ...previous,
+        password: '',
+        confirmPassword: '',
+      }));
+      setVerificationCode('');
+      setVerificationError('');
     } catch (error) {
       const data = error.response?.data;
 
       if (data?.errors) {
         if (Array.isArray(data.errors)) {
+          const fieldErrors = {};
+          data.errors.forEach((error) => {
+            if (error?.field && error?.message) fieldErrors[error.field] = error.message;
+          });
+          if (Object.keys(fieldErrors).length) setErrors(fieldErrors);
           const messages = data.errors.map((e) => (typeof e === 'object' ? e.message || e.msg || JSON.stringify(e) : e));
           setApiError(messages.join(', '));
         } else if (typeof data.errors === 'object') {
@@ -164,9 +232,79 @@ const RegisterPage = () => {
         setApiError(data?.message || error.message || 'Registration failed. Please try again.');
       }
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };
+
+  const handleVerify = async (event) => {
+    event.preventDefault();
+    if (verifyLockRef.current || !/^\d{6}$/.test(verificationCode)) {
+      setVerificationError('Enter the six-digit code from your email.');
+      return;
+    }
+
+    verifyLockRef.current = true;
+    setIsVerifying(true);
+    setVerificationError('');
+    setVerificationMessage('');
+    try {
+      const response = await verifyEmail({
+        email: verificationEmail,
+        otp: verificationCode,
+      });
+      setVerificationComplete(true);
+      setVerificationCode('');
+      setVerificationMessage(
+        response.message || 'Email verified. You can now sign in.'
+      );
+      toast.success('Email verified successfully!');
+    } catch (error) {
+      setVerificationError(
+        error.response?.data?.message ||
+          error.message ||
+          'Unable to verify this code. Please try again.'
+      );
+    } finally {
+      verifyLockRef.current = false;
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendLockRef.current || resendSecondsRemaining > 0) return;
+
+    resendLockRef.current = true;
+    setIsResending(true);
+    setVerificationError('');
+    setVerificationMessage('');
+    try {
+      const response = await resendEmailOtp({ email: verificationEmail });
+      const cooldown = response.data?.resendCooldownSeconds || 60;
+      setOtpSecondsRemaining(response.data?.expiresInSeconds || 300);
+      setResendSecondsRemaining(cooldown);
+      setVerificationMessage(
+        response.message || 'If this address is eligible for verification, a new code will be sent.'
+      );
+      setVerificationCode('');
+    } catch (error) {
+      setVerificationError(
+        error.response?.data?.message ||
+          error.message ||
+          'Unable to resend the code. Please try again later.'
+      );
+      const retryAfter = Number(error.response?.headers?.['retry-after']);
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        setResendSecondsRemaining(Math.ceil(retryAfter));
+      }
+    } finally {
+      resendLockRef.current = false;
+      setIsResending(false);
+    }
+  };
+
+  const formatCountdown = (seconds) =>
+    `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
   return (
     <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4 py-12 bg-linear-to-br from-primary-50 via-white to-primary-100 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
@@ -188,6 +326,97 @@ const RegisterPage = () => {
 
         {/* Card */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-200 dark:border-gray-700 p-8">
+          {verificationEmail ? (
+            <section aria-labelledby="verify-email-heading" className="space-y-5">
+              <div className="text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
+                  <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 7.5v9A2.25 2.25 0 0 1 19.5 18.75h-15A2.25 2.25 0 0 1 2.25 16.5v-9m19.5 0A2.25 2.25 0 0 0 19.5 5.25h-15A2.25 2.25 0 0 0 2.25 7.5m19.5 0-8.47 6.036a2.25 2.25 0 0 1-2.56 0L2.25 7.5" />
+                  </svg>
+                </div>
+                <h2 id="verify-email-heading" className="text-xl font-bold text-gray-900 dark:text-white">
+                  Verify your email
+                </h2>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                  Enter the six-digit code from the verification email. SMTP acceptance does not guarantee Inbox delivery; check Spam and All Mail if it is missing.
+                  <span className="mt-1 block break-all font-medium text-gray-900 dark:text-gray-200">
+                    {verificationEmail}
+                  </span>
+                </p>
+              </div>
+
+              {verificationError && (
+                <div role="alert" className="rounded-xl border border-danger-500/20 bg-danger-500/10 p-3 text-sm text-danger-600 dark:text-danger-500">
+                  {verificationError}
+                </div>
+              )}
+              {verificationMessage && (
+                <div role="status" className="rounded-xl border border-primary-500/20 bg-primary-500/10 p-3 text-sm text-primary-700 dark:text-primary-300">
+                  {verificationMessage}
+                </div>
+              )}
+
+              {!verificationComplete && (
+                <>
+                  <form onSubmit={handleVerify} noValidate className="space-y-4">
+                    <div>
+                      <label htmlFor="verificationCode" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Email verification code
+                      </label>
+                      <input
+                        id="verificationCode"
+                        name="verificationCode"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={(event) => {
+                          setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6));
+                          setVerificationError('');
+                        }}
+                        disabled={isVerifying}
+                        aria-describedby="otp-expiry"
+                        className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-center text-2xl font-bold tracking-[0.5em] text-gray-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/40 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                        placeholder="000000"
+                      />
+                    </div>
+                    <p id="otp-expiry" className="text-center text-sm text-gray-500 dark:text-gray-400">
+                      {otpSecondsRemaining > 0
+                        ? `Code expires in ${formatCountdown(otpSecondsRemaining)}`
+                        : 'This code has expired. Request a new one.'}
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={isVerifying || verificationCode.length !== 6 || otpSecondsRemaining === 0}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-800"
+                    >
+                      {isVerifying && (
+                        <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      )}
+                      {isVerifying ? 'Verifying...' : 'Verify Email'}
+                    </button>
+                  </form>
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={isResending || resendSecondsRemaining > 0}
+                    className="w-full text-sm font-medium text-primary-600 transition-colors hover:text-primary-500 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-primary-400 dark:hover:text-primary-300 dark:disabled:text-gray-500"
+                  >
+                    {isResending
+                      ? 'Sending new code...'
+                      : resendSecondsRemaining > 0
+                        ? `Resend code in ${formatCountdown(resendSecondsRemaining)}`
+                        : 'Resend OTP'}
+                  </button>
+                </>
+              )}
+            </section>
+          ) : (
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             {/* API Error */}
             {apiError && (
@@ -357,6 +586,62 @@ const RegisterPage = () => {
               )}
             </div>
 
+            {/* Phone Number */}
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Phone Number <span className="text-danger-500">*</span>
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                required
+                value={formData.phone}
+                onChange={handleChange}
+                className={`w-full px-4 py-2.5 rounded-xl border bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 ${
+                  errors.phone
+                    ? 'border-danger-500 focus:ring-danger-500/40 focus:border-danger-500'
+                    : 'border-gray-300 dark:border-gray-600'
+                }`}
+                placeholder="Enter your phone number"
+                aria-invalid={Boolean(errors.phone)}
+                aria-describedby={errors.phone ? 'phoneError' : undefined}
+              />
+              {errors.phone && (
+                <p id="phoneError" className="mt-1.5 text-sm text-danger-500" role="alert">{errors.phone}</p>
+              )}
+            </div>
+
+            {/* WhatsApp Number */}
+            <div>
+              <label htmlFor="whatsappNumber" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                WhatsApp Number <span className="text-danger-500">*</span>
+              </label>
+              <input
+                id="whatsappNumber"
+                name="whatsappNumber"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                required
+                value={formData.whatsappNumber}
+                onChange={handleChange}
+                className={`w-full px-4 py-2.5 rounded-xl border bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 ${
+                  errors.whatsappNumber
+                    ? 'border-danger-500 focus:ring-danger-500/40 focus:border-danger-500'
+                    : 'border-gray-300 dark:border-gray-600'
+                }`}
+                placeholder="Enter your WhatsApp number"
+                aria-invalid={Boolean(errors.whatsappNumber)}
+                aria-describedby={errors.whatsappNumber ? 'whatsappNumberError' : undefined}
+              />
+              {errors.whatsappNumber && (
+                <p id="whatsappNumberError" className="mt-1.5 text-sm text-danger-500" role="alert">{errors.whatsappNumber}</p>
+              )}
+            </div>
+
             {/* Role Selection */}
             <div>
               <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -443,6 +728,7 @@ const RegisterPage = () => {
               {isSubmitting ? 'Creating account...' : 'Create account'}
             </button>
           </form>
+          )}
         </div>
 
         {/* Footer link */}

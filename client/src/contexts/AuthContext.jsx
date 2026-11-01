@@ -70,14 +70,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const register = useCallback(async (data) => {
-    const response = await authService.register(data);
-    const { token: newToken, user: newUser } = response.data;
-
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-    setUser(newUser);
-
-    return response;
+    return authService.register(data);
   }, []);
 
   const logout = useCallback(() => {

@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import * as organizerService from '../../services/organizerService';
 import CapacityBar from '../../components/ui/CapacityBar';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
+import { formatCurrency } from '../../utils/formatters';
 
 const STAT_CARDS = [
   {
@@ -42,7 +43,7 @@ const STAT_CARDS = [
       </svg>
     ),
     colorClasses: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
-    format: (val) => `$${(val ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+    format: (val) => formatCurrency(val ?? 0),
   },
   {
     key: 'capacityUtilization',
@@ -300,7 +301,7 @@ const OrganizerDashboardPage = () => {
                           {item.confirmedCount ?? item.registrations ?? 0} registered
                         </span>
                         <span className="font-semibold text-gray-900 dark:text-white">
-                          ${(item.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          {formatCurrency(item.revenue || 0)}
                         </span>
                       </div>
                     </div>

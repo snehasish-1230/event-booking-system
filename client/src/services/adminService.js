@@ -48,6 +48,31 @@ export const deleteEvent = async (id) => {
   return response.data;
 };
 
+export const getEventRoom = async (eventId) => {
+  const response = await axiosInstance.get(`/api/admin/events/${eventId}/room`);
+  return response.data;
+};
+
+export const saveEventRoomDraft = async (eventId, data) => {
+  const response = await axiosInstance.put(`/api/admin/events/${eventId}/room/draft`, data);
+  return response.data;
+};
+
+export const publishEventRoom = async (eventId, data) => {
+  const response = await axiosInstance.put(`/api/admin/events/${eventId}/room`, data);
+  return response.data;
+};
+
+export const resendFailedRoomEmails = async (eventId) => {
+  const response = await axiosInstance.post(`/api/admin/events/${eventId}/room/resend-failed`);
+  return response.data;
+};
+
+export const resendRoomEmails = async (eventId) => {
+  const response = await axiosInstance.post(`/api/admin/events/${eventId}/room/resend`);
+  return response.data;
+};
+
 export const getRegistrations = async (params) => {
   const response = await axiosInstance.get('/api/admin/registrations', {
     params,

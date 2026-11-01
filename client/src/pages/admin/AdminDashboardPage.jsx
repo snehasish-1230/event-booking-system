@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { formatDistanceToNow } from 'date-fns';
 import * as adminService from '../../services/adminService';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
+import { formatCurrency } from '../../utils/formatters';
 
 const STAT_CARDS = [
   {
@@ -78,7 +79,7 @@ const STAT_CARDS = [
       </svg>
     ),
     colorClasses: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
-    format: (val) => `$${(val ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+    format: (val) => formatCurrency(val ?? 0),
   },
 ];
 

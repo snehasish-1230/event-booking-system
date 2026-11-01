@@ -561,9 +561,10 @@ event-booking-system/
 
 - **Roles:** `attendee`, `organizer`, `admin` (self-registration limited to attendee/organizer).
 - **Event categories:** `conference`, `workshop`, `seminar`, `meetup`, `concert`, `sports`, `networking`, `webinar`, `other`.
-- **Currencies:** `USD`, `EUR`, `TRY`, `GBP`.
+- **Currency:** `INR` (Indian Rupee).
 - **Event statuses:** `draft`, `published`, `cancelled`, `completed`.
-- **Registration statuses:** `confirmed`, `cancelled`, `attended`.
+- **Registration statuses:** `pending`, `confirmed`, `cancelled`, `attended`. Paid-event registrations stay `pending` until a genuine payment is approved; free-event registrations are confirmed immediately.
+- **Payment statuses:** `NOT_REQUIRED`, `PENDING`, `APPROVED`, `REJECTED`. Development test payments use a separate collection and never confirm tickets or send confirmation email.
 - **Ticket types:** `standard`, `vip`.
 - **Rate limits (per 15 min):** global 100, auth 10, registration 20, upload 10, confirmation 20.
 - **Limits:** body `10kb`; upload `5MB`; bcrypt salt rounds `12`; lockout `5` attempts / `15` min.

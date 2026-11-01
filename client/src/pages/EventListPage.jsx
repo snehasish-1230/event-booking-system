@@ -174,8 +174,8 @@ const EventListPage = () => {
     if (filters.city) chips.push({ key: 'city', label: `City: ${filters.city}` });
     if (filters.dateFrom) chips.push({ key: 'dateFrom', label: `From: ${filters.dateFrom}` });
     if (filters.dateTo) chips.push({ key: 'dateTo', label: `To: ${filters.dateTo}` });
-    if (filters.priceMin) chips.push({ key: 'priceMin', label: `Min Price: ${filters.priceMin}` });
-    if (filters.priceMax) chips.push({ key: 'priceMax', label: `Max Price: ${filters.priceMax}` });
+    if (filters.priceMin) chips.push({ key: 'priceMin', label: `Min Price: ₹${filters.priceMin}` });
+    if (filters.priceMax) chips.push({ key: 'priceMax', label: `Max Price: ₹${filters.priceMax}` });
     if (filters.sort !== DEFAULT_FILTERS.sort) {
       const sortLabel = SORT_OPTIONS.find((o) => o.value === filters.sort)?.label || filters.sort;
       chips.push({ key: 'sort', label: `Sort: ${sortLabel}` });
@@ -404,7 +404,7 @@ const EventListPage = () => {
               {/* Price Range */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Price Range ($)
+                  Price Range (INR ₹)
                 </label>
                 <div className="flex items-center gap-2">
                   <input

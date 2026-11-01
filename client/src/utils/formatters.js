@@ -29,17 +29,18 @@ export const formatTimeAgo = (date) =>
 
 /**
  * @param {number} amount
- * @param {string} currency - ISO 4217 currency code (default: "USD")
- * @returns {string} e.g. "$25.00" or "Free"
+ * @returns {string} e.g. "₹1,234.00" or "Free"
  */
-export const formatCurrency = (amount, currency = 'USD') => {
-  if (amount === 0) return 'Free';
+export const formatCurrency = (amount) => {
+  const numericAmount = Number(amount);
+  if (numericAmount === 0) return 'FREE';
+  if (!Number.isFinite(numericAmount)) return 'Price unavailable';
 
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency,
+    currency: 'INR',
     minimumFractionDigits: 2,
-  }).format(amount);
+  }).format(numericAmount);
 };
 
 /**

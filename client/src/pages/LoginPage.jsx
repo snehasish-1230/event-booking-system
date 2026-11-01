@@ -1,10 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import useDocumentTitle from '../hooks/useDocumentTitle';
 import toast from 'react-hot-toast';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const getRetryAfterSeconds = (headers = {}) => {
+  const retryAfter = headers['retry-after'];
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds);
+    const retryDate = Date.parse(retryAfter);
+    if (Number.isFinite(retryDate)) {
+      return Math.max(1, Math.ceil((retryDate - Date.now()) / 1000));
+    }
+  }
+
+  const resetValue =
+    headers['ratelimit-reset'] ||
+    headers['x-ratelimit-reset'] ||
+    headers.ratelimit?.match(/reset=(\d+)/i)?.[1];
+  const resetSeconds = Number(resetValue);
+  return Number.isFinite(resetSeconds) && resetSeconds > 0
+    ? Math.ceil(resetSeconds)
+    : null;
+};
 
 const LoginPage = () => {
   useDocumentTitle('Login');
@@ -23,6 +44,17 @@ const LoginPage = () => {
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const submitLockRef = useRef(false);
+
+  useEffect(() => {
+    if (lockoutSeconds <= 0) return undefined;
+    const timer = setTimeout(
+      () => setLockoutSeconds((remaining) => Math.max(0, remaining - 1)),
+      1000
+    );
+    return () => clearTimeout(timer);
+  }, [lockoutSeconds]);
 
   useEffect(() => {
     const savedEmail = localStorage.getItem('rememberedEmail');
@@ -75,14 +107,18 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLockRef.current || lockoutSeconds > 0) return;
     const currentData = syncAutofill();
     if (!validate(currentData)) return;
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     setApiError('');
 
     try {
       await login({ email: currentData.email, password: currentData.password });
+      setLockoutSeconds(0);
+      setApiError('');
 
       if (currentData.rememberMe) {
         localStorage.setItem('rememberedEmail', currentData.email);
@@ -95,6 +131,14 @@ const LoginPage = () => {
     } catch (error) {
       const data = error.response?.data;
       let message = data?.message || error.message || 'Login failed. Please try again.';
+      if ([423, 429].includes(error.response?.status)) {
+        const remainingSeconds = Number(data?.retryAfterSeconds) ||
+          getRetryAfterSeconds(error.response.headers);
+        if (remainingSeconds) setLockoutSeconds(remainingSeconds);
+        if (!data?.message && remainingSeconds) {
+          message = `Too many failed login attempts. Try again in ${remainingSeconds} seconds.`;
+        }
+      }
       if (data?.errors) {
         const msgs = Array.isArray(data.errors)
           ? data.errors.map((e) => (typeof e === 'object' ? e.message || e.msg : e))
@@ -103,6 +147,7 @@ const LoginPage = () => {
       }
       setApiError(message);
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -129,12 +174,20 @@ const LoginPage = () => {
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-200 dark:border-gray-700 p-8">
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             {/* API Error */}
-            {apiError && (
+            {(apiError || lockoutSeconds > 0) && (
               <div className="flex items-center gap-3 p-3 bg-danger-500/10 border border-danger-500/20 rounded-xl text-sm text-danger-600 dark:text-danger-500" role="alert">
                 <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <span>{apiError}</span>
+                <span>
+                  {apiError}
+                  {lockoutSeconds > 0 && (
+                    <span className="block mt-1 font-semibold">
+                      You can retry in {Math.floor(lockoutSeconds / 60)}:
+                      {String(lockoutSeconds % 60).padStart(2, '0')}.
+                    </span>
+                  )}
+                </span>
               </div>
             )}
 
@@ -206,7 +259,7 @@ const LoginPage = () => {
             </div>
 
             {/* Remember Me */}
-            <div className="flex items-center">
+            <div className="flex items-center justify-between gap-3">
               <input
                 id="rememberMe"
                 name="rememberMe"
@@ -218,12 +271,18 @@ const LoginPage = () => {
               <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                 Remember me
               </label>
+              <Link
+                to="/auth/forgot-password"
+                className="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+              >
+                Forgot Password?
+              </Link>
             </div>
 
             {/* Submit */}
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || lockoutSeconds > 0}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
             >
               {isSubmitting && (

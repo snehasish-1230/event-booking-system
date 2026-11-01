@@ -13,6 +13,7 @@ const errorHandler = (err, req, res, next) => {
 
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal server error';
+  let errors;
 
   // Mongoose invalid ObjectId
   if (err.name === 'CastError') {
@@ -23,13 +24,18 @@ const errorHandler = (err, req, res, next) => {
   // Mongoose validation error — collect field-specific messages
   if (err.name === 'ValidationError') {
     statusCode = 400;
-    const fields = Object.values(err.errors).map((e) => e.message);
-    message = fields.join(', ');
+    errors = Object.values(err.errors).map((fieldError) => ({
+      field: fieldError.path,
+      message: fieldError.message,
+    }));
+    message = errors
+      .map(({ field, message: detail }) => `${field}: ${detail}`)
+      .join('; ');
   }
 
   // MongoDB duplicate key
   if (err.code === 11000) {
-    statusCode = 400;
+    statusCode = 409;
     message = 'Duplicate field value entered';
   }
 
@@ -51,9 +57,17 @@ const errorHandler = (err, req, res, next) => {
     message = err.message;
   }
 
+  if (Number.isFinite(err.retryAfterSeconds) && err.retryAfterSeconds > 0) {
+    res.setHeader('Retry-After', String(Math.ceil(err.retryAfterSeconds)));
+  }
+
   res.status(statusCode).json({
     success: false,
     message: isProduction && statusCode === 500 ? 'Internal server error' : message,
+    ...(errors && { errors }),
+    ...(Number.isFinite(err.retryAfterSeconds) && err.retryAfterSeconds > 0 && {
+      retryAfterSeconds: Math.ceil(err.retryAfterSeconds),
+    }),
     ...(isProduction ? {} : { stack: err.stack }),
   });
 };

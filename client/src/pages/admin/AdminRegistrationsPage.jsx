@@ -9,6 +9,7 @@ import usePagination from '../../hooks/usePagination';
 
 const STATUS_OPTIONS = [
   { key: 'all', label: 'All Status' },
+  { key: 'pending', label: 'Pending Payment' },
   { key: 'confirmed', label: 'Confirmed' },
   { key: 'cancelled', label: 'Cancelled' },
   { key: 'attended', label: 'Attended' },

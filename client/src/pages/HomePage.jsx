@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getFeaturedEvents, getCategories } from '../services/eventService';
+import { getEvents, getCategories } from '../services/eventService';
 import EventCard from '../components/ui/EventCard';
 import useDocumentTitle from '../hooks/useDocumentTitle';
 
@@ -119,7 +119,7 @@ const HomePage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
-  const [featuredEvents, setFeaturedEvents] = useState([]);
+  const [latestEvents, setLatestEvents] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
 
@@ -127,13 +127,13 @@ const HomePage = () => {
     const fetchData = async () => {
       try {
         const [eventsRes, categoriesRes] = await Promise.allSettled([
-          getFeaturedEvents(),
+          getEvents({ limit: 6, sort: 'createdAt', upcoming: true }),
           getCategories(),
         ]);
 
         if (eventsRes.status === 'fulfilled') {
           const eventsData = eventsRes.value.data?.events || eventsRes.value.data || eventsRes.value || [];
-          setFeaturedEvents(Array.isArray(eventsData) ? eventsData : []);
+          setLatestEvents(Array.isArray(eventsData) ? eventsData : []);
         }
 
         if (categoriesRes.status === 'fulfilled') {
@@ -257,10 +257,10 @@ const HomePage = () => {
         <div className="flex items-center justify-between mb-10">
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-              Featured Events
+              Latest Events
             </h2>
             <p className="mt-2 text-gray-500 dark:text-gray-400">
-              Don&apos;t miss out on these popular upcoming events
+              Explore the newest published upcoming events
             </p>
           </div>
           <Link
@@ -290,9 +290,9 @@ const HomePage = () => {
               </div>
             ))}
           </div>
-        ) : featuredEvents.length > 0 ? (
+        ) : latestEvents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredEvents.slice(0, 6).map((event) => (
+            {latestEvents.map((event) => (
               <EventCard key={event._id} event={event} />
             ))}
           </div>
@@ -302,8 +302,8 @@ const HomePage = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
             </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No featured events yet</h3>
-            <p className="mt-2 text-gray-500 dark:text-gray-400">Check back soon for exciting upcoming events!</p>
+            <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No upcoming events yet</h3>
+            <p className="mt-2 text-gray-500 dark:text-gray-400">Check back soon for exciting events!</p>
             <Link
               to="/events"
               className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white font-medium

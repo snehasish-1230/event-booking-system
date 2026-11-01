@@ -6,14 +6,17 @@ import toast from 'react-hot-toast';
 import { getRegistrationById, cancelRegistration } from '../services/registrationService';
 import { useAuth } from '../contexts/AuthContext';
 import useDocumentTitle from '../hooks/useDocumentTitle';
+import { isPaidEvent } from '../utils/eventPricing';
 
 const STATUS_STYLES = {
+  pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
   cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
   attended: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
 };
 
 const STATUS_LABELS = {
+  pending: 'Awaiting Payment',
   confirmed: 'Confirmed',
   cancelled: 'Cancelled',
   attended: 'Attended',
@@ -30,6 +33,7 @@ const TicketDetailPage = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedRoomValue, setCopiedRoomValue] = useState('');
 
   useDocumentTitle(
     registration ? `Ticket — ${registration.event?.title || 'Detail'}` : 'Ticket Detail'
@@ -79,6 +83,16 @@ const TicketDetailPage = () => {
       setTimeout(() => setCopiedCode(false), 2000);
     } catch {
       toast.error('Failed to copy confirmation code.');
+    }
+  };
+
+  const handleCopyRoomValue = async (value) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedRoomValue(value);
+      setTimeout(() => setCopiedRoomValue(''), 2000);
+    } catch {
+      toast.error('Failed to copy room details.');
     }
   };
 
@@ -158,6 +172,7 @@ const TicketDetailPage = () => {
   }
 
   const event = registration.event || {};
+  const paidEvent = isPaidEvent(event);
   const attendee = registration.user || user || {};
   const eventDate = event.date ? new Date(event.date) : null;
   const venue = event.location?.venue;
@@ -165,7 +180,10 @@ const TicketDetailPage = () => {
   const locationStr = [venue, city].filter(Boolean).join(', ');
   const isCancelled = registration.status === 'cancelled';
   const isConfirmed = registration.status === 'confirmed';
-  const canCancel = isConfirmed && eventDate && eventDate > new Date();
+  const canCancel = (isConfirmed || registration.status === 'pending') && eventDate && eventDate > new Date();
+  const canIssueTicket =
+    (isConfirmed || registration.status === 'attended') &&
+    (!paidEvent || registration.paymentStatus === 'APPROVED');
 
   return (
     <>
@@ -234,15 +252,21 @@ const TicketDetailPage = () => {
 
             {/* QR Code & Confirmation Code */}
             <div className="text-center mb-8">
-              <div className="inline-block p-4 bg-white rounded-xl border border-gray-100 dark:border-gray-600 dark:bg-gray-700/30">
-                <QRCodeSVG
-                  value={registration.confirmationCode}
-                  size={180}
-                  level="H"
-                  includeMargin={true}
-                  className="dark:opacity-90 print:opacity-100"
-                />
-              </div>
+              {canIssueTicket ? (
+                <div className="inline-block p-4 bg-white rounded-xl border border-gray-100 dark:border-gray-600 dark:bg-gray-700/30">
+                  <QRCodeSVG
+                    value={registration.confirmationCode}
+                    size={180}
+                    level="H"
+                    includeMargin={true}
+                    className="dark:opacity-90 print:opacity-100"
+                  />
+                </div>
+              ) : (
+                <p className="mx-auto max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                  Your ticket QR code will be available after payment is verified.
+                </p>
+              )}
 
               {/* Confirmation Code */}
               <div className="mt-4">
@@ -312,6 +336,45 @@ const TicketDetailPage = () => {
                 </div>
               )}
 
+              {registration.teamMode && registration.players?.length > 0 && (
+                <div className="border-b border-gray-100 py-3 dark:border-gray-700">
+                  <p className="text-gray-500 dark:text-gray-400">
+                    {registration.gameMode || registration.teamMode || event.gameMode || event.teamMode} · {registration.teamSize || event.teamSize || registration.players.length} player(s)
+                  </p>
+                  <ul className="mt-2 space-y-1 text-right font-medium text-gray-900 dark:text-white">
+                    {registration.players.map((player, index) => (
+                      <li key={`${registration._id}-${player.freeFireUid}`}>
+                        Player {index + 1}: {player.playerName} · UID {player.freeFireUid}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {registration.room && (
+                <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-800 dark:bg-primary-950/30">
+                  <h2 className="font-semibold text-primary-900 dark:text-primary-200">
+                    Room Details Available
+                  </h2>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-primary-900 dark:text-primary-100">
+                    <dt>Room ID</dt><dd className="break-all font-mono font-semibold">{registration.room.roomId} <button type="button" onClick={() => handleCopyRoomValue(registration.room.roomId)} className="ml-1 underline">{copiedRoomValue === registration.room.roomId ? 'Copied' : 'Copy'}</button></dd>
+                    <dt>Password</dt><dd className="break-all font-mono font-semibold">{registration.room.roomPassword} <button type="button" onClick={() => handleCopyRoomValue(registration.room.roomPassword)} className="ml-1 underline">{copiedRoomValue === registration.room.roomPassword ? 'Copied' : 'Copy'}</button></dd>
+                    <dt>Team slot</dt><dd className="font-semibold">{registration.room.slotNumber}</dd>
+                    <dt>Match time</dt><dd className="font-semibold">{format(new Date(registration.room.matchAt), 'MMM dd, yyyy · h:mm a')}</dd>
+                  </dl>
+                  {registration.room.instructions && (
+                    <p className="mt-3 border-t border-primary-200 pt-3 text-sm text-primary-900 dark:border-primary-800 dark:text-primary-100">
+                      Instructions: {registration.room.instructions}
+                    </p>
+                  )}
+                </div>
+              )}
+              {event.teamMode && isConfirmed && !registration.room && (
+                <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-gray-700/40 dark:text-gray-300">
+                  Room Details Not Published Yet
+                </p>
+              )}
+
               {/* Ticket Type */}
               {registration.ticketType && (
                 <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
@@ -331,13 +394,59 @@ const TicketDetailPage = () => {
               </div>
 
               {/* Status */}
-              <div className="flex items-center justify-between py-3">
-                <span className="text-gray-500 dark:text-gray-400">Status</span>
+              <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-gray-500 dark:text-gray-400">Attendance Status</span>
                 <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${STATUS_STYLES[registration.status]}`}>
                   {STATUS_LABELS[registration.status]}
                 </span>
               </div>
+
+              {/* Payment Status for Paid Events */}
+              {paidEvent && (
+                <div className="flex items-center justify-between py-3">
+                  <span className="text-gray-500 dark:text-gray-400">Payment Status</span>
+                  <div className="flex items-center gap-2">
+                    {registration.paymentStatus === 'APPROVED' ? (
+                      <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        Paid (Verified)
+                      </span>
+                    ) : registration.paymentStatus === 'REJECTED' ? (
+                      <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300">
+                        Payment Rejected
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 animate-pulse">
+                        Payment Pending
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Payment Callout for Paid Events when not yet approved */}
+            {paidEvent && registration.paymentStatus !== 'APPROVED' && !isCancelled && (
+              <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl print:hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                    {registration.paymentStatus === 'PENDING'
+                      ? 'Payment verification in progress'
+                      : 'Payment required for this booking'}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                    {registration.paymentStatus === 'PENDING'
+                      ? 'View your submission or check verification status.'
+                      : 'Please scan the UPI QR code to complete your booking.'}
+                  </p>
+                </div>
+                <Link
+                  to={`/payments?bookingId=${registration._id}`}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors shrink-0 shadow-sm"
+                >
+                  {registration.paymentStatus === 'PENDING' ? 'View Payment Details' : 'Pay via QR Code'}
+                </Link>
+              </div>
+            )}
 
             {/* Action Buttons — hidden in print */}
             <div className="mt-8 flex flex-col sm:flex-row gap-3 print:hidden">

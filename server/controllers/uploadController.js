@@ -1,15 +1,13 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const AppError = require('../utils/AppError');
+const {
+  getImageExtension,
+  getImageExtensionForMime,
+} = require('../utils/imageFile');
 
 const UPLOADS_DIR = path.resolve(__dirname, '..', 'uploads');
-
-const MIME_TO_EXT = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-};
 
 /**
  * Upload a single event image.
@@ -22,10 +20,18 @@ const uploadImage = async (req, res, next) => {
       throw new AppError('No image file provided', 400);
     }
 
-    const ext = MIME_TO_EXT[req.file.mimetype] || 'jpg';
-    const filename = `event-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+    const ext = getImageExtension(req.file.buffer);
+    if (!ext || ext !== getImageExtensionForMime(req.file.mimetype)) {
+      throw new AppError(
+        'Uploaded file content does not match a supported image format',
+        400
+      );
+    }
+
+    const filename = `event-${Date.now()}-${crypto.randomUUID()}.${ext}`;
     const filePath = path.join(UPLOADS_DIR, filename);
 
+    await fs.promises.mkdir(UPLOADS_DIR, { recursive: true });
     await fs.promises.writeFile(filePath, req.file.buffer);
 
     res.status(201).json({

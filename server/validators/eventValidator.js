@@ -12,7 +12,7 @@ const CATEGORIES = [
   'other',
 ];
 
-const CURRENCIES = ['USD', 'EUR', 'TRY', 'GBP'];
+const CURRENCIES = ['INR'];
 
 const createEventRules = [
   body('title')
@@ -36,7 +36,8 @@ const createEventRules = [
     .withMessage('Event date is required')
     .isISO8601()
     .withMessage('Date must be a valid ISO 8601 format')
-    .custom((value) => {
+    .custom((value, { req }) => {
+      if (req.method === 'PUT') return true;
       if (new Date(value) <= new Date()) {
         throw new Error('Event date must be in the future');
       }
@@ -90,12 +91,80 @@ const createEventRules = [
     .notEmpty()
     .withMessage('Capacity is required')
     .isInt({ min: 1, max: 100000 })
-    .withMessage('Capacity must be between 1 and 100,000'),
+    .withMessage('Capacity must be between 1 and 100,000')
+    .custom((value, { req }) => {
+      const minParticipants = Number(req.body.minParticipants ?? 1);
+      if (Number(value) < minParticipants) {
+        throw new Error('Capacity cannot be lower than minimum members');
+      }
+      return true;
+    }),
+
+  body('minParticipants')
+    .optional()
+    .isInt({ min: 1, max: 100000 })
+    .withMessage('Minimum members must be between 1 and 100,000')
+    .custom((value, { req }) => {
+      if (
+        req.body.capacity !== undefined &&
+        Number(value) > Number(req.body.capacity)
+      ) {
+        throw new Error('Minimum members cannot exceed event capacity');
+      }
+      return true;
+    }),
+
+  body('teamMode')
+    .optional()
+    .isIn(['SOLO', 'DUO', 'TRIO', 'SQUAD'])
+    .withMessage('Team mode must be SOLO, DUO, TRIO, or SQUAD'),
+
+  body('gameMode')
+    .optional()
+    .isIn(['SOLO', 'DUO', 'TRIO', 'SQUAD'])
+    .withMessage('Game mode must be SOLO, DUO, TRIO, or SQUAD'),
+
+  body('teamSize')
+    .optional()
+    .isInt({ min: 1, max: 4 })
+    .withMessage('Team size must be between 1 and 4')
+    .bail()
+    .custom((value, { req }) => {
+      const expected = { SOLO: 1, DUO: 2, TRIO: 3, SQUAD: 4 };
+      const mode = req.body.gameMode || req.body.teamMode;
+      if (mode && expected[mode] !== Number(value)) {
+        throw new Error('Team size does not match the selected game mode');
+      }
+      return true;
+    }),
 
   body('price')
     .optional()
     .isFloat({ min: 0 })
-    .withMessage('Price must be a positive number'),
+    .withMessage('Price must be a non-negative number'),
+
+  body('pricingType')
+    .optional()
+    .isIn(['FREE', 'PAID'])
+    .withMessage('Pricing type must be FREE or PAID')
+    .bail()
+    .custom((value, { req }) => {
+      if (value === 'FREE' && Number(req.body.price ?? 0) !== 0) {
+        throw new Error('FREE events must have a price of 0');
+      }
+      if (value === 'PAID' && !(Number(req.body.price) > 0)) {
+        throw new Error('PAID events require a price greater than 0');
+      }
+      return true;
+    }),
+
+  body('image')
+    .optional()
+    .isString()
+    .withMessage('Image must be a URL string')
+    .trim()
+    .isLength({ max: 2048 })
+    .withMessage('Image URL cannot exceed 2048 characters'),
 
   body('currency')
     .optional()
@@ -110,10 +179,25 @@ const createEventRules = [
 
   body('tags')
     .optional()
-    .isArray()
-    .withMessage('Tags must be an array'),
+    .customSanitizer((value) => {
+      const tags = Array.isArray(value) ? value : [value];
+      return [...new Set(tags
+        .flatMap((tag) => (typeof tag === 'string' ? tag.split(',') : [tag]))
+        .map((tag) => (typeof tag === 'string' ? tag.trim() : tag))
+        .filter(Boolean))];
+    })
+    .isArray({ max: 10 })
+    .withMessage('Tags must contain no more than 10 entries'),
 
-  body('tags.*').optional().trim().escape(),
+  body('tags.*')
+    .optional()
+    .isString()
+    .withMessage('Each tag must be text')
+    .bail()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Tags cannot exceed 50 characters')
+    .escape(),
 
   body('maxRegistrationsPerUser')
     .optional()

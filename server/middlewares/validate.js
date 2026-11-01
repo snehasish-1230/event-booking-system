@@ -15,7 +15,9 @@ const validate = (req, res, next) => {
 
     return res.status(400).json({
       success: false,
-      message: 'Validation failed',
+      message: `Validation failed: ${formattedErrors
+        .map(({ field, message }) => `${field}: ${message}`)
+        .join('; ')}`,
       errors: formattedErrors,
     });
   }

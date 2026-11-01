@@ -209,24 +209,25 @@ NODE_ENV=development
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret_min_32_chars
 JWT_EXPIRE=7d
-CLIENT_URL=http://localhost:5173
+CLIENT_URL=http://localhost:5175,http://localhost:5173
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
 SMTP_PASS=your-generated-app-password
 SMTP_FROM_NAME=EventBooking
+EMAIL_OTP_SECRET=optional_dedicated_secret_defaults_to_JWT_SECRET
 UPLOAD_MAX_SIZE=5242880
 ADMIN_SEED_EMAIL=admin@example.com
 ADMIN_SEED_PASSWORD=your_admin_password
 ADMIN_SEED_NAME=Admin
 ```
 
-> In development mode, emails are logged to the console if SMTP credentials are not configured.
+> Email verification and password reset require `SMTP_USER` and `SMTP_PASS` in every environment. For Gmail, use a Google App Password. Set `EMAIL_OTP_SECRET` to a long random secret if you want a dedicated HMAC key for OTP and reset-token hashes; otherwise the backend uses `JWT_SECRET`. Codes and reset credentials are never included in email-delivery logs or ordinary API responses.
 
-**client/.env** (optional — Vite proxy handles `/api` in dev)
+**client/.env** (optional — Vite proxies `/api` and `/uploads` to the configured backend in development)
 
 ```env
-VITE_API_URL=http://localhost:5000/api
+VITE_API_URL=http://localhost:5002
 ```
 
 **3. Install dependencies:**
@@ -246,10 +247,10 @@ npm run seed
 **5. Run the application:**
 
 ```bash
-# Terminal 1 — Backend (http://localhost:5000)
+# Terminal 1 — Backend (http://localhost:5002)
 cd server && npm run dev
 
-# Terminal 2 — Frontend (http://localhost:5173)
+# Terminal 2 — Frontend (http://localhost:5175)
 cd client && npm run dev
 ```
 
@@ -285,7 +286,7 @@ cd client && npm run dev
 
 ### Authentication Flow
 
-1. User registers or logs in → server generates a JWT token
+1. New users register, verify their email using a six-digit code that expires after five minutes, and then log in to receive a JWT token. Unverified users cannot log in.
 2. Token is stored in `localStorage` and sent via the `Authorization: Bearer <token>` header
 3. `AuthContext` calls `/api/auth/me` on mount to restore the session
 4. Protected routes check authentication and role via route guard components (`ProtectedRoute`, `OrganizerRoute`, `AdminRoute`)
@@ -313,7 +314,13 @@ cd client && npm run dev
 
 | Method | Endpoint | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/api/auth/register` | No | Register a new user |
+| POST | `/api/auth/register` | No | Create a pending account and send an email verification code |
+| POST | `/api/auth/verify-email` | No | Verify an email code and activate the account |
+| POST | `/api/auth/resend-email-otp` | No | Request a replacement verification code |
+| POST | `/api/auth/forgot-password` | No | Request a password-reset OTP (generic response) |
+| POST | `/api/auth/verify-password-reset-otp` | No | Verify a password-reset OTP and receive short-lived reset authorization |
+| POST | `/api/auth/resend-password-reset-otp` | No | Request a replacement password-reset OTP |
+| POST | `/api/auth/reset-password` | No | Set a new password using single-use reset authorization |
 | POST | `/api/auth/login` | No | Login and receive JWT |
 | GET | `/api/auth/me` | Yes | Get current user profile |
 | PUT | `/api/auth/profile` | Yes | Update user profile |
@@ -348,6 +355,20 @@ cd client && npm run dev
 | GET | `/api/registrations/:id` | Yes | Get registration details |
 | PUT | `/api/registrations/:id/check-in` | Organizer | Check-in an attendee |
 | DELETE | `/api/registrations/:id` | Yes | Cancel a registration |
+
+### Payments (`/api/payments`)
+
+| Method | Endpoint | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/api/payments/config` | Yes | Get UPI payment configuration and upload limits |
+| POST | `/api/payments` | Yes | Submit genuine payment details and screenshot as multipart form data |
+| GET | `/api/payments/my` | Yes | Get own payment submissions |
+| GET | `/api/payments/:id` | Yes | Get own payment or booking details |
+| GET | `/api/payments/admin/all` | Admin | List genuine payment submissions and status totals |
+| PATCH | `/api/payments/admin/:id/review` | Admin | Approve or reject a genuine payment |
+| POST | `/api/payments/test` | Yes, non-production only | Create a separate `TEST_ONLY` payment record without changing ticket status |
+| GET | `/api/payments/admin/test/all` | Admin, non-production only | List development test payments |
+| PATCH | `/api/payments/admin/test/:id/review` | Admin, non-production only | Review a test payment without changing a real registration |
 
 ### Users (`/api/users`)
 
@@ -393,7 +414,7 @@ cd client && npm run dev
 
 Interactive API documentation is available at `/api-docs` when the server is running:
 
-- **Local:** [http://localhost:5000/api-docs](http://localhost:5000/api-docs)
+- **Local:** [http://localhost:5002/api-docs](http://localhost:5002/api-docs)
 - Provides a complete OpenAPI 3.0 specification with all endpoints, request/response schemas, and authentication details
 - Test API endpoints directly from the browser with the built-in "Try it out" feature
 
@@ -522,7 +543,7 @@ event-booking-system/
 
 | Variable | Value |
 | --- | --- |
-| `VITE_API_URL` | `https://your-backend-url.com/api` |
+| `VITE_API_URL` | `https://your-backend-url.com` |
 
 > The `netlify.toml` and `_redirects` files are already configured for SPA routing.
 
@@ -535,24 +556,37 @@ event-booking-system/
 | `MONGO_URI` | MongoDB connection string | — |
 | `JWT_SECRET` | JWT signing secret (min 32 chars in production) | — |
 | `JWT_EXPIRE` | JWT token expiration | `7d` |
-| `CLIENT_URL` | Frontend URL for CORS | `http://localhost:5173` |
+| `CLIENT_URL` | Comma-separated frontend origins for CORS | `http://localhost:5175,http://localhost:5173` |
 | `SMTP_HOST` | SMTP server host | `smtp.gmail.com` |
 | `SMTP_PORT` | SMTP server port | `587` |
 | `SMTP_USER` | SMTP email address | — |
 | `SMTP_PASS` | SMTP app password | — |
 | `SMTP_FROM_NAME` | Sender display name | `EventBooking` |
+| `EMAIL_OTP_SECRET` | HMAC secret for OTP/reset credentials; defaults to `JWT_SECRET` | — |
 | `UPLOAD_MAX_SIZE` | Max upload size in bytes | `5242880` (5MB) |
 | `ADMIN_SEED_EMAIL` | Admin email for seed script | — |
 | `ADMIN_SEED_PASSWORD` | Admin password for seed script | — |
 | `ADMIN_SEED_NAME` | Admin display name for seed script | `Admin` |
+
+### Development-only admin unlock
+
+The login lockout is per account; the HTTP 429 login limiter is per client IP and is not cleared by changing a user's lock fields. To clear lock state for one active, email-verified admin in a development database, run from `server/`:
+
+```bash
+NODE_ENV=development npm run unlock-admin -- admin@example.com
+```
+
+The command requires the exact admin email and refuses to run unless `NODE_ENV=development`. It changes only that verified admin's `loginAttempts` and `lockUntil`; it does not change the password or other users. Do not use it as a way to bypass shared-IP HTTP 429 limits.
 
 ### Email Setup (Gmail SMTP)
 
 1. Enable **2-Step Verification** on your Google Account at [Google Account Security](https://myaccount.google.com/security)
 2. Go to [App passwords](https://myaccount.google.com/apppasswords) and generate a new 16-character app password for "Event Booking System"
 3. Configure the SMTP environment variables in `server/.env` (use the app password — **not** your account password — for `SMTP_PASS`)
-4. The server verifies the SMTP connection on startup and logs the result
-5. In development mode, emails are logged to console if SMTP credentials are not configured
+4. The server verifies the SMTP connection on startup, but this only checks connectivity and authentication; it does not verify delivery to a recipient's Inbox.
+5. Registration returns success only after Nodemailer reports that the OTP recipient was accepted by SMTP. Failed or rejected SMTP submissions return an error and safe server diagnostics (masked recipient, message ID when available, response code, and SMTP command).
+6. SMTP acceptance means the provider accepted the message for processing, not that Gmail delivered it to Inbox. Check Inbox, Spam, Promotions, and All Mail; review sender reputation, authentication, and Gmail sending limits if delivery varies. Consider a transactional email service for production delivery monitoring.
+7. SMTP credentials are required for OTP and password-reset email. Without them, those endpoints fail rather than logging or exposing OTPs.
 
 ---
 
@@ -571,6 +605,7 @@ event-booking-system/
 - ✅ Responsive design across all pages
 - ✅ Image upload with validation
 - ✅ Multi-tier rate limiting and security hardening
+- ✅ Login and registration requests are limited to 10 per 15 minutes in production and 50 per 15 minutes in development; the global API limit remains 100 per 15 minutes
 - ✅ Search, filter, and pagination with debounced queries
 - ✅ SEO-friendly slug-based event URLs
 

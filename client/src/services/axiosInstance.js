@@ -3,9 +3,7 @@ import axios from 'axios';
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
   timeout: 15000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  withCredentials: false,
 });
 
 // Attach token to every request if available
@@ -40,13 +38,23 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    const validationErrors = Array.isArray(error.response?.data?.errors)
+      ? error.response.data.errors
+          .map(({ field, message: validationMessage }) =>
+            field ? `${field}: ${validationMessage}` : validationMessage
+          )
+          .filter(Boolean)
+      : [];
     const message =
+      (validationErrors.length && validationErrors.join('; ')) ||
       error.response?.data?.message ||
-      error.response?.data?.errors?.join(', ') ||
       'An unexpected error occurred';
 
     const enhancedError = new Error(message);
-    if (error.response) enhancedError.response = error.response;
+    if (error.response) {
+      enhancedError.response = error.response;
+      enhancedError.validationErrors = error.response.data?.errors || [];
+    }
     return Promise.reject(enhancedError);
   }
 );

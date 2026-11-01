@@ -116,12 +116,26 @@ const options = {
               },
             },
             capacity: { type: 'integer', example: 500 },
+            minParticipants: { type: 'integer', minimum: 1, example: 2 },
+            teamMode: {
+              type: 'string',
+              enum: ['SOLO', 'DUO', 'TRIO', 'SQUAD'],
+              nullable: true,
+              description: 'Fixed Free Fire team format for the event.',
+            },
+            gameMode: {
+              type: 'string',
+              enum: ['SOLO', 'DUO', 'TRIO', 'SQUAD'],
+              nullable: true,
+            },
+            teamSize: { type: 'integer', enum: [1, 2, 3, 4], nullable: true },
             registeredCount: { type: 'integer', example: 120 },
             price: { type: 'number', example: 49.99 },
+            pricingType: { type: 'string', enum: ['FREE', 'PAID'], example: 'PAID' },
             currency: {
               type: 'string',
-              enum: ['USD', 'EUR', 'TRY', 'GBP'],
-              example: 'USD',
+              enum: ['INR'],
+              example: 'INR',
             },
             category: {
               type: 'string',
@@ -176,7 +190,7 @@ const options = {
             confirmationCode: { type: 'string', example: 'A1B2C3D4E5F6' },
             status: {
               type: 'string',
-              enum: ['confirmed', 'cancelled', 'attended'],
+              enum: ['pending', 'confirmed', 'cancelled', 'attended'],
               example: 'confirmed',
             },
             registeredAt: {
@@ -193,6 +207,28 @@ const options = {
               type: 'string',
               enum: ['standard', 'vip'],
               example: 'standard',
+            },
+            teamMode: {
+              type: 'string',
+              enum: ['SOLO', 'DUO', 'TRIO', 'SQUAD'],
+              nullable: true,
+            },
+            gameMode: {
+              type: 'string',
+              enum: ['SOLO', 'DUO', 'TRIO', 'SQUAD'],
+              nullable: true,
+            },
+            teamSize: { type: 'integer', enum: [1, 2, 3, 4], nullable: true },
+            players: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['playerName', 'freeFireUid'],
+                properties: {
+                  playerName: { type: 'string', minLength: 2, maxLength: 50 },
+                  freeFireUid: { type: 'string', pattern: '^\\d{1,20}$' },
+                },
+              },
             },
             notes: { type: 'string', example: 'Dietary requirements: vegan' },
             createdAt: {
@@ -798,11 +834,38 @@ const options = {
                       },
                     },
                     capacity: { type: 'integer', minimum: 1, example: 500 },
+                    teamMode: {
+                      type: 'string',
+                      enum: ['SOLO', 'DUO', 'TRIO', 'SQUAD'],
+                      description: 'One fixed team format for all registrations in this event.',
+                    },
+                    gameMode: {
+                      type: 'string',
+                      enum: ['SOLO', 'DUO', 'TRIO', 'SQUAD'],
+                      description: 'Must agree with teamMode and teamSize.',
+                    },
+                    teamSize: {
+                      type: 'integer',
+                      enum: [1, 2, 3, 4],
+                      description: 'Derived from the selected gameMode.',
+                    },
+                    minParticipants: {
+                      type: 'integer',
+                      minimum: 1,
+                      example: 2,
+                      description: 'Target minimum attendance; does not gate publishing.',
+                    },
                     price: { type: 'number', minimum: 0, example: 49.99 },
+                    pricingType: {
+                      type: 'string',
+                      enum: ['FREE', 'PAID'],
+                      example: 'PAID',
+                      description: 'FREE events require price 0; PAID events require a price greater than 0.',
+                    },
                     currency: {
                       type: 'string',
-                      enum: ['USD', 'EUR', 'TRY', 'GBP'],
-                      example: 'USD',
+                      enum: ['INR'],
+                      example: 'INR',
                     },
                     category: {
                       type: 'string',
@@ -1084,6 +1147,7 @@ const options = {
                     },
                     capacity: { type: 'integer' },
                     price: { type: 'number' },
+                    pricingType: { type: 'string', enum: ['FREE', 'PAID'] },
                     currency: { type: 'string' },
                     category: { type: 'string' },
                     tags: { type: 'array', items: { type: 'string' } },
@@ -1172,6 +1236,23 @@ const options = {
                       maxLength: 500,
                       example: 'Dietary requirements: vegan',
                     },
+                    teamMode: {
+                      type: 'string',
+                      enum: ['SOLO', 'DUO', 'TRIO', 'SQUAD'],
+                    },
+                    players: {
+                      type: 'array',
+                      minItems: 1,
+                      maxItems: 4,
+                      items: {
+                        type: 'object',
+                        required: ['playerName', 'freeFireUid'],
+                        properties: {
+                          playerName: { type: 'string', minLength: 2, maxLength: 50 },
+                          freeFireUid: { type: 'string', pattern: '^\\d{1,20}$' },
+                        },
+                      },
+                    },
                   },
                 },
               },
@@ -1227,7 +1308,7 @@ const options = {
               name: 'status',
               schema: {
                 type: 'string',
-                enum: ['confirmed', 'cancelled', 'attended'],
+                enum: ['pending', 'confirmed', 'cancelled', 'attended'],
               },
             },
             { $ref: '#/components/parameters/SearchParam' },
@@ -1374,7 +1455,7 @@ const options = {
               name: 'status',
               schema: {
                 type: 'string',
-                enum: ['confirmed', 'cancelled', 'attended'],
+                enum: ['pending', 'confirmed', 'cancelled', 'attended'],
               },
             },
             { $ref: '#/components/parameters/PageParam' },
@@ -2019,6 +2100,140 @@ const options = {
           },
         },
       },
+      '/api/admin/events/{id}/room': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Get event registrations and room details',
+          description:
+            'Returns registrations for this event and existing room credentials. Admin access is required.',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/MongoId' }],
+          responses: {
+            200: { description: 'Event registrations and room details' },
+            400: { description: 'Event must have a team format configured' },
+            401: { description: 'Not authenticated' },
+            403: { description: 'Admin role required' },
+            404: { description: 'Event not found' },
+          },
+        },
+        put: {
+          tags: ['Admin'],
+          summary: 'Publish room details to eligible teams',
+          description:
+            'Assigns unique slots to every confirmed and payment-eligible team, persists room details, and sends email notifications to team contacts.',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/MongoId' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['roomId', 'roomPassword', 'matchAt', 'assignments'],
+                  properties: {
+                    roomId: { type: 'string', maxLength: 80 },
+                    roomPassword: { type: 'string', maxLength: 80 },
+                    matchAt: { type: 'string', format: 'date-time' },
+                    assignments: {
+                      type: 'array',
+                      minItems: 1,
+                      items: {
+                        type: 'object',
+                        required: ['registrationId', 'slotNumber'],
+                        properties: {
+                          registrationId: { type: 'string' },
+                          slotNumber: { type: 'integer', minimum: 1, maximum: 100000 },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Room details published; includes email delivery counts' },
+            400: { description: 'Invalid room, slots, or no eligible teams' },
+            401: { description: 'Not authenticated' },
+            403: { description: 'Admin role required' },
+            404: { description: 'Event not found' },
+            409: { description: 'Conflicting room slot data' },
+          },
+        },
+      },
+      '/api/admin/events/{id}/room/draft': {
+        put: {
+          tags: ['Admin'],
+          summary: 'Save event room details as a draft',
+          description: 'Stores event-scoped room credentials and slot assignments without exposing them to users or sending email.',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/MongoId' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['roomId', 'roomPassword', 'matchAt'],
+                  properties: {
+                    roomId: { type: 'string', maxLength: 80 },
+                    roomPassword: { type: 'string', maxLength: 80 },
+                    matchAt: { type: 'string', format: 'date-time' },
+                    instructions: { type: 'string', maxLength: 1000 },
+                    assignments: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        required: ['registrationId', 'slotNumber'],
+                        properties: {
+                          registrationId: { type: 'string' },
+                          slotNumber: { type: 'integer', minimum: 1, maximum: 100000 },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Draft saved; not visible to users' },
+            400: { description: 'Invalid room details or slot assignments' },
+            403: { description: 'Admin role required' },
+            404: { description: 'Event not found' },
+          },
+        },
+      },
+      '/api/admin/events/{id}/room/resend-failed': {
+        post: {
+          tags: ['Admin'],
+          summary: 'Resend failed event room emails',
+          description: 'Retries only failed deliveries for eligible registrations belonging to the selected event.',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/MongoId' }],
+          responses: {
+            200: { description: 'Email retry counts' },
+            400: { description: 'Room details have not been published' },
+            403: { description: 'Admin role required' },
+            404: { description: 'Event not found' },
+          },
+        },
+      },
+      '/api/admin/events/{id}/room/resend': {
+        post: {
+          tags: ['Admin'],
+          summary: 'Resend room details to eligible event teams',
+          description: 'Explicitly resends the currently published room details to eligible registrations belonging to this event.',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/MongoId' }],
+          responses: {
+            200: { description: 'Email delivery counts' },
+            400: { description: 'Room details have not been published' },
+            403: { description: 'Admin role required' },
+            404: { description: 'Event not found' },
+          },
+        },
+      },
       '/api/admin/events/{id}/status': {
         put: {
           tags: ['Admin'],
@@ -2091,7 +2306,7 @@ const options = {
               name: 'status',
               schema: {
                 type: 'string',
-                enum: ['confirmed', 'cancelled', 'attended'],
+                enum: ['pending', 'confirmed', 'cancelled', 'attended'],
               },
             },
             { $ref: '#/components/parameters/PageParam' },

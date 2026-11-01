@@ -51,9 +51,44 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    whatsappNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     isActive: {
       type: Boolean,
       default: true,
+    },
+    emailVerified: {
+      type: Boolean,
+      default: true,
+    },
+    emailOtpHash: {
+      type: String,
+      select: false,
+    },
+    emailOtpExpiresAt: {
+      type: Date,
+      select: false,
+    },
+    emailOtpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    emailOtpResendAvailableAt: {
+      type: Date,
+      select: false,
+    },
+    emailOtpResendWindowStartedAt: {
+      type: Date,
+      select: false,
+    },
+    emailOtpResendCount: {
+      type: Number,
+      default: 0,
+      select: false,
     },
     passwordChangedAt: {
       type: Date,

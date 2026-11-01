@@ -13,9 +13,11 @@ const CATEGORIES = [
   'other',
 ];
 
-const CURRENCIES = ['USD', 'EUR', 'TRY', 'GBP'];
+// Keep legacy values valid for stored events; newly created or edited prices use INR.
+const CURRENCIES = ['USD', 'EUR', 'TRY', 'GBP', 'INR'];
 
 const STATUSES = ['draft', 'published', 'cancelled', 'completed'];
+const TEAM_MODES = ['SOLO', 'DUO', 'TRIO', 'SQUAD'];
 
 const eventSchema = new mongoose.Schema(
   {
@@ -78,6 +80,64 @@ const eventSchema = new mongoose.Schema(
       min: [1, 'Capacity must be at least 1'],
       max: [100000, 'Capacity cannot exceed 100000'],
     },
+    minParticipants: {
+      type: Number,
+      required: true,
+      min: [1, 'Minimum members must be at least 1'],
+      validate: {
+        validator(value) {
+          const capacity = this.get?.('capacity') ?? this.capacity;
+          return capacity === undefined || value <= capacity;
+        },
+        message: 'Minimum members cannot exceed event capacity',
+      },
+      default: 1,
+    },
+    teamMode: {
+      type: String,
+      enum: {
+        values: TEAM_MODES,
+        message: '{VALUE} is not a valid team mode',
+      },
+      validate: {
+        validator(value) {
+          const otherMode = this.get?.('gameMode') ?? this.gameMode;
+          return !value || !otherMode || value === otherMode;
+        },
+        message: 'Team mode and game mode must match',
+      },
+    },
+    gameMode: {
+      type: String,
+      enum: {
+        values: TEAM_MODES,
+        message: '{VALUE} is not a valid game mode',
+      },
+      validate: {
+        validator(value) {
+          const mode = this.get?.('teamMode') ?? this.teamMode;
+          return !value || !mode || value === mode;
+        },
+        message: 'Game mode and team mode must match',
+      },
+    },
+    teamSize: {
+      type: Number,
+      enum: {
+        values: [1, 2, 3, 4],
+        message: '{VALUE} is not a supported team size',
+      },
+      min: 1,
+      max: 4,
+      validate: {
+        validator(value) {
+          const mode = this.get?.('gameMode') ?? this.gameMode ?? this.teamMode;
+          const teamSizes = { SOLO: 1, DUO: 2, TRIO: 3, SQUAD: 4 };
+          return value === undefined || !mode || teamSizes[mode] === Number(value);
+        },
+        message: 'Team size must match the selected game mode',
+      },
+    },
     registeredCount: {
       type: Number,
       min: [0, 'Registered count cannot be negative'],
@@ -88,13 +148,49 @@ const eventSchema = new mongoose.Schema(
       min: [0, 'Price cannot be negative'],
       default: 0,
     },
+    pricingType: {
+      type: String,
+      enum: {
+        values: ['FREE', 'PAID'],
+        message: '{VALUE} is not a valid pricing type',
+      },
+      default() {
+        return this.price > 0 ? 'PAID' : 'FREE';
+      },
+      validate: {
+        validator(value) {
+          const price = this.get?.('price') ?? this.price;
+          return value === 'FREE' ? Number(price) === 0 : Number(price) > 0;
+        },
+        message: 'FREE events must have a price of 0; PAID events require a price greater than 0',
+      },
+    },
     currency: {
       type: String,
       enum: {
         values: CURRENCIES,
         message: '{VALUE} is not a valid currency',
       },
-      default: 'USD',
+      validate: {
+        validator(value) {
+          if (typeof this?.isModified === 'function') {
+            return (!this.isNew && !this.isModified('currency')) || value === 'INR';
+          }
+
+          if (typeof this?.getUpdate === 'function') {
+            const update = this.getUpdate() || {};
+            const updatedCurrency =
+              update.currency ??
+              update.$set?.currency ??
+              update.$setOnInsert?.currency;
+            return updatedCurrency === undefined || updatedCurrency === 'INR';
+          }
+
+          return value === 'INR';
+        },
+        message: 'New or updated events must use INR',
+      },
+      default: 'INR',
     },
     category: {
       type: String,

@@ -1,10 +1,99 @@
 const Registration = require('../models/Registration');
+const Payment = require('../models/Payment');
 const Event = require('../models/Event');
+const EventRoom = require('../models/EventRoom');
 const AppError = require('../utils/AppError');
 const escapeRegex = require('../utils/escapeRegex');
 const { sendEmail } = require('../utils/emailService');
 const generateConfirmationEmail = require('../templates/confirmationEmail');
 const generateCancellationEmail = require('../templates/cancellationEmail');
+const { isPaidEvent } = require('../utils/eventPricing');
+const {
+  getTeamFormat,
+  isValidTeamRegistration,
+} = require('../utils/teamFormat');
+
+const validateTeamRegistration = (event, body) => {
+  const players = Array.isArray(body.players) ? body.players : [];
+  const teamFormat = getTeamFormat(event);
+  if (!teamFormat) {
+    if (players.length) {
+      throw new AppError('This event does not accept a Free Fire team roster', 400);
+    }
+    return { teamMode: undefined, gameMode: undefined, teamSize: undefined, players: [] };
+  }
+
+  if (
+    (body.teamMode &&
+      String(body.teamMode).toUpperCase() !== teamFormat.teamMode) ||
+    (body.gameMode &&
+      String(body.gameMode).toUpperCase() !== teamFormat.gameMode) ||
+    (body.teamSize !== undefined && Number(body.teamSize) !== teamFormat.teamSize)
+  ) {
+    throw new AppError('Team format does not match this event', 400);
+  }
+  if (players.length !== teamFormat.teamSize) {
+    throw new AppError(
+      `${teamFormat.teamMode} registration requires exactly ${teamFormat.teamSize} player${teamFormat.teamSize === 1 ? '' : 's'}`,
+      400
+    );
+  }
+
+  const normalizedPlayers = players.map((player) => ({
+    playerName: typeof player.playerName === 'string' ? player.playerName.trim() : '',
+    freeFireUid: typeof player.freeFireUid === 'string' ? player.freeFireUid.trim() : '',
+  }));
+  if (
+    normalizedPlayers.some(
+      ({ playerName, freeFireUid }) =>
+        playerName.length < 2 ||
+        playerName.length > 50 ||
+        !/^\d{1,20}$/.test(freeFireUid)
+    )
+  ) {
+    throw new AppError('Enter a valid player name and numeric Free Fire UID for every team member', 400);
+  }
+  if (new Set(normalizedPlayers.map((player) => player.freeFireUid)).size !== normalizedPlayers.length) {
+    throw new AppError('Each team member must have a unique Free Fire UID', 400);
+  }
+
+  return {
+    ...teamFormat,
+    players: normalizedPlayers,
+  };
+};
+
+const getRoomDetailsForRegistration = async (registration) => {
+  const event = registration.event;
+  const eligible =
+    registration.status === 'confirmed' &&
+    event &&
+    isValidTeamRegistration(registration, event) &&
+    (isPaidEvent(event)
+      ? registration.paymentStatus === 'APPROVED'
+      : registration.paymentStatus === 'NOT_REQUIRED');
+  if (!eligible) return null;
+
+  const room = await EventRoom.findOne({
+    event: event._id,
+    $or: [
+      { status: 'published' },
+      { status: { $exists: false }, publishedAt: { $exists: true } },
+    ],
+  }).select('+roomPassword');
+  const assignment = room?.assignments.find(
+    (entry) => entry.registration.toString() === registration._id.toString()
+  );
+  if (!room || !assignment) return null;
+
+  return {
+    roomId: room.roomId,
+    roomPassword: room.roomPassword,
+    matchAt: room.matchAt,
+    slotNumber: assignment.slotNumber,
+    instructions: room.instructions || '',
+  };
+};
 
 // @desc    Register for an event (race-condition safe)
 // @route   POST /api/events/:id/register
@@ -27,20 +116,35 @@ const registerForEvent = async (req, res, next) => {
       throw new AppError('Event has already passed', 400);
     }
 
+    if (await EventRoom.exists({
+      event: eventId,
+      $or: [
+        { status: 'published' },
+        { status: { $exists: false }, publishedAt: { $exists: true } },
+      ],
+    })) {
+      throw new AppError('Registration is closed after room details are published', 400);
+    }
+    const teamRegistration = validateTeamRegistration(event, req.body);
+
     const existingRegistration = await Registration.findOne({
       user: userId,
       event: eventId,
     });
 
-    if (existingRegistration && existingRegistration.status === 'confirmed') {
-      throw new AppError('You are already registered for this event', 400);
+    if (existingRegistration && existingRegistration.status !== 'cancelled') {
+      throw new AppError('You are already registered for this event', 409);
     }
+    const previouslyApprovedPayment = existingRegistration
+      ? await Payment.findOne({ booking: existingRegistration._id, status: 'APPROVED' })
+      : null;
 
     // Atomic capacity check — prevents race conditions on last-spot registration
     const updatedEvent = await Event.findOneAndUpdate(
       {
         _id: eventId,
         status: 'published',
+        teamMode: event.teamMode ?? null,
         $expr: { $lt: ['$registeredCount', '$capacity'] },
       },
       { $inc: { registeredCount: 1 } },
@@ -53,18 +157,57 @@ const registerForEvent = async (req, res, next) => {
 
     let registration;
     try {
+      const requiresPayment = isPaidEvent(updatedEvent);
+      if (
+        requiresPayment &&
+        previouslyApprovedPayment &&
+        previouslyApprovedPayment.amount !== updatedEvent.price
+      ) {
+        throw new AppError('Previously verified payment does not match the current ticket price', 409);
+      }
+      const paymentAlreadyVerified =
+        requiresPayment &&
+        previouslyApprovedPayment &&
+        previouslyApprovedPayment.amount === updatedEvent.price;
+      const initialPaymentStatus = paymentAlreadyVerified
+        ? 'APPROVED'
+        : requiresPayment
+          ? 'PENDING'
+          : 'NOT_REQUIRED';
       if (existingRegistration && existingRegistration.status === 'cancelled') {
-        existingRegistration.status = 'confirmed';
-        existingRegistration.ticketType = req.body.ticketType || 'standard';
-        existingRegistration.notes = req.body.notes || '';
-        existingRegistration.registeredAt = new Date();
-        registration = await existingRegistration.save();
+        registration = await Registration.findOneAndUpdate(
+          { _id: existingRegistration._id, status: 'cancelled' },
+          {
+            $set: {
+              status: requiresPayment && !paymentAlreadyVerified ? 'pending' : 'confirmed',
+              paymentStatus: initialPaymentStatus,
+              ticketType: req.body.ticketType || 'standard',
+              notes: req.body.notes || '',
+              teamMode: teamRegistration.teamMode,
+              gameMode: teamRegistration.gameMode,
+              teamSize: teamRegistration.teamSize,
+              players: teamRegistration.players,
+              registeredAt: new Date(),
+              cancelledAt: null,
+            },
+          },
+          { new: true, runValidators: true }
+        );
+        if (!registration) {
+          throw new AppError('You are already registered for this event', 409);
+        }
       } else {
         registration = await Registration.create({
           user: userId,
           event: eventId,
+          status: requiresPayment && !paymentAlreadyVerified ? 'pending' : 'confirmed',
+          paymentStatus: initialPaymentStatus,
           ticketType: req.body.ticketType || 'standard',
           notes: req.body.notes || '',
+          teamMode: teamRegistration.teamMode,
+          gameMode: teamRegistration.gameMode,
+          teamSize: teamRegistration.teamSize,
+          players: teamRegistration.players,
         });
       }
     } catch (regError) {
@@ -75,23 +218,27 @@ const registerForEvent = async (req, res, next) => {
       throw regError;
     }
 
-    await registration.populate('event', 'title slug date time location image status organizer');
+    await registration.populate(
+      'event',
+      'title slug date time location image status organizer price pricingType currency'
+    );
 
-    // Fire-and-forget confirmation email
-    sendEmail({
-      to: req.user.email,
-      subject: `Registration Confirmed — ${updatedEvent.title}`,
-      html: generateConfirmationEmail({
-        userName: req.user.name,
-        eventTitle: updatedEvent.title,
-        eventDate: updatedEvent.date,
-        eventTime: updatedEvent.time || 'TBA',
-        venue: updatedEvent.location?.venue || '',
-        city: updatedEvent.location?.city || '',
-        confirmationCode: registration.confirmationCode,
-        eventSlug: updatedEvent.slug,
-      }),
-    }).catch((err) => console.error('Confirmation email failed:', err.message));
+    if (registration.status === 'confirmed') {
+      sendEmail({
+        to: req.user.email,
+        subject: `Registration Confirmed — ${updatedEvent.title}`,
+        html: generateConfirmationEmail({
+          userName: req.user.name,
+          eventTitle: updatedEvent.title,
+          eventDate: updatedEvent.date,
+          eventTime: updatedEvent.time || 'TBA',
+          venue: updatedEvent.location?.venue || '',
+          city: updatedEvent.location?.city || '',
+          confirmationCode: registration.confirmationCode,
+          eventSlug: updatedEvent.slug,
+        }),
+      }).catch((err) => console.error('Confirmation email failed:', err.message));
+    }
 
     res.status(201).json({
       success: true,
@@ -101,6 +248,9 @@ const registerForEvent = async (req, res, next) => {
       },
     });
   } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.user && err.keyPattern?.event) {
+      return next(new AppError('You are already registered for this event', 409));
+    }
     next(err);
   }
 };
@@ -168,7 +318,7 @@ const getMyRegistrations = async (req, res, next) => {
     const { status, page = 1, limit = 10 } = req.query;
 
     const filter = { user: req.user._id };
-    if (status && ['confirmed', 'cancelled', 'attended'].includes(status)) {
+    if (status && ['pending', 'confirmed', 'cancelled', 'attended'].includes(status)) {
       filter.status = status;
     }
 
@@ -181,14 +331,20 @@ const getMyRegistrations = async (req, res, next) => {
         .sort({ registeredAt: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('event', 'title slug date location image status organizer'),
+        .populate('event', 'title slug date location image status organizer price pricingType currency teamMode gameMode teamSize'),
       Registration.countDocuments(filter),
     ]);
+    const registrationsWithRooms = await Promise.all(
+      registrations.map(async (registration) => ({
+        ...registration.toObject(),
+        room: await getRoomDetailsForRegistration(registration),
+      }))
+    );
 
     res.status(200).json({
       success: true,
       data: {
-        registrations,
+        registrations: registrationsWithRooms,
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -207,7 +363,7 @@ const getMyRegistrations = async (req, res, next) => {
 const getRegistrationById = async (req, res, next) => {
   try {
     const registration = await Registration.findById(req.params.id)
-      .populate('event', 'title slug date time location image status organizer')
+      .populate('event', 'title slug date time location image status organizer price pricingType currency teamMode gameMode teamSize')
       .populate('user', 'name email avatar');
 
     if (!registration) {
@@ -224,9 +380,14 @@ const getRegistrationById = async (req, res, next) => {
       throw new AppError('Not authorized to view this registration', 403);
     }
 
+    const registrationData = registration.toObject();
+    if (isOwner || req.user.role === 'admin') {
+      registrationData.room = await getRoomDetailsForRegistration(registration);
+    }
+
     res.status(200).json({
       success: true,
-      data: { registration },
+      data: { registration: registrationData },
     });
   } catch (err) {
     next(err);
@@ -240,7 +401,7 @@ const getRegistrationByCode = async (req, res, next) => {
     const registration = await Registration.findOne({
       confirmationCode: req.params.code.toUpperCase(),
     })
-      .populate('event', 'title slug date time location image status organizer')
+      .populate('event', 'title slug date time location image status organizer price pricingType currency teamMode gameMode teamSize')
       .populate('user', 'name email avatar');
 
     if (!registration) {
@@ -287,7 +448,7 @@ const getEventRegistrations = async (req, res, next) => {
     const { status, search, page = 1, limit = 20 } = req.query;
 
     const filter = { event: event._id };
-    if (status && ['confirmed', 'cancelled', 'attended'].includes(status)) {
+    if (status && ['pending', 'confirmed', 'cancelled', 'attended'].includes(status)) {
       filter.status = status;
     }
 
@@ -301,10 +462,11 @@ const getEventRegistrations = async (req, res, next) => {
       .limit(limitNum)
       .populate('user', 'name email phone avatar');
 
-    const [registrations, total, confirmedCount, cancelledCount, attendedCount] =
+    const [registrations, total, pendingCount, confirmedCount, cancelledCount, attendedCount] =
       await Promise.all([
         registrationsQuery,
         Registration.countDocuments(filter),
+        Registration.countDocuments({ event: event._id, status: 'pending' }),
         Registration.countDocuments({ event: event._id, status: 'confirmed' }),
         Registration.countDocuments({ event: event._id, status: 'cancelled' }),
         Registration.countDocuments({ event: event._id, status: 'attended' }),
@@ -323,7 +485,7 @@ const getEventRegistrations = async (req, res, next) => {
     const totalCancelled = cancelledCount;
     const capacityPercentage =
       event.capacity > 0
-        ? Math.round(((confirmedCount + attendedCount) / event.capacity) * 100)
+        ? Math.round(((pendingCount + confirmedCount + attendedCount) / event.capacity) * 100)
         : 0;
 
     res.status(200).json({
@@ -332,6 +494,7 @@ const getEventRegistrations = async (req, res, next) => {
         registrations: filteredRegistrations,
         stats: {
           totalConfirmed,
+          totalPending: pendingCount,
           totalCancelled,
           totalAttended: attendedCount,
           capacityPercentage,
@@ -356,13 +519,13 @@ const checkInAttendee = async (req, res, next) => {
     // Find by ID or confirmation code
     let registration = await Registration.findById(req.params.id).populate(
       'event',
-      'organizer title'
+      'organizer title price'
     );
 
     if (!registration) {
       registration = await Registration.findOne({
         confirmationCode: req.params.id.toUpperCase(),
-      }).populate('event', 'organizer title');
+      }).populate('event', 'organizer title price pricingType');
     }
 
     if (!registration) {
@@ -387,6 +550,10 @@ const checkInAttendee = async (req, res, next) => {
 
     if (registration.status !== 'confirmed') {
       throw new AppError('Only confirmed registrations can be checked in', 400);
+    }
+
+    if (isPaidEvent(registration.event) && registration.paymentStatus !== 'APPROVED') {
+      throw new AppError('Payment must be verified before checking in this attendee', 400);
     }
 
     registration.status = 'attended';
@@ -422,9 +589,10 @@ const getEventStats = async (req, res, next) => {
       throw new AppError('Not authorized to view stats for this event', 403);
     }
 
-    const [totalRegistrations, confirmedCount, cancelledCount, attendedCount] =
+    const [totalRegistrations, pendingCount, confirmedCount, cancelledCount, attendedCount] =
       await Promise.all([
         Registration.countDocuments({ event: event._id }),
+        Registration.countDocuments({ event: event._id, status: 'pending' }),
         Registration.countDocuments({ event: event._id, status: 'confirmed' }),
         Registration.countDocuments({ event: event._id, status: 'cancelled' }),
         Registration.countDocuments({ event: event._id, status: 'attended' }),
@@ -432,7 +600,7 @@ const getEventStats = async (req, res, next) => {
 
     const capacityPercentage =
       event.capacity > 0
-        ? Math.round(((confirmedCount + attendedCount) / event.capacity) * 100)
+        ? Math.round(((pendingCount + confirmedCount + attendedCount) / event.capacity) * 100)
         : 0;
 
     const revenueEstimate = event.price * confirmedCount;
@@ -449,6 +617,7 @@ const getEventStats = async (req, res, next) => {
         },
         stats: {
           totalRegistrations,
+          pendingCount,
           confirmedCount,
           cancelledCount,
           attendedCount,
@@ -463,6 +632,8 @@ const getEventStats = async (req, res, next) => {
 };
 
 module.exports = {
+  validateTeamRegistration,
+  getRoomDetailsForRegistration,
   registerForEvent,
   cancelRegistration,
   getMyRegistrations,

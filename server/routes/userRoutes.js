@@ -1,6 +1,5 @@
 const express = require('express');
 const { protect } = require('../middlewares/auth');
-const { globalLimiter } = require('../middlewares/rateLimiter');
 const validate = require('../middlewares/validate');
 const { mongoIdParam } = require('../validators/paramValidator');
 const {
@@ -15,7 +14,7 @@ const router = express.Router();
 router.get('/me/stats', protect, getUserStats);
 
 // Public routes
-router.get('/:id/profile', globalLimiter, mongoIdParam(), validate, getPublicProfile);
-router.get('/:id/organizer', globalLimiter, mongoIdParam(), validate, getOrganizerProfile);
+router.get('/:id/profile', mongoIdParam(), validate, getPublicProfile);
+router.get('/:id/organizer', mongoIdParam(), validate, getOrganizerProfile);
 
 module.exports = router;

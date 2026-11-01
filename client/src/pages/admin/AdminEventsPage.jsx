@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import * as adminService from '../../services/adminService';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -53,6 +54,7 @@ const getValidTransitions = (currentStatus) => {
 const LIMIT = 10;
 
 const AdminEventsPage = () => {
+  const navigate = useNavigate();
   useDocumentTitle('Manage Events');
 
   const [events, setEvents] = useState([]);
@@ -282,6 +284,7 @@ const AdminEventsPage = () => {
                         isOpen={openDropdown === event._id}
                         onToggle={() => setOpenDropdown(openDropdown === event._id ? null : event._id)}
                         onChangeStatus={() => openStatusModal(event)}
+                        onRoomManagement={() => navigate(`/admin/events/${event._id}/room`)}
                         onDelete={() => openDeleteConfirm(event)}
                         isLoading={actionLoading === event._id}
                         dropdownRef={openDropdown === event._id ? dropdownRef : null}
@@ -302,6 +305,7 @@ const AdminEventsPage = () => {
                 isOpen={openDropdown === event._id}
                 onToggle={() => setOpenDropdown(openDropdown === event._id ? null : event._id)}
                 onChangeStatus={() => openStatusModal(event)}
+                onRoomManagement={() => navigate(`/admin/events/${event._id}/room`)}
                 onDelete={() => openDeleteConfirm(event)}
                 isLoading={actionLoading === event._id}
                 dropdownRef={openDropdown === event._id ? dropdownRef : null}
@@ -420,7 +424,7 @@ const AdminEventsPage = () => {
 };
 
 /* ═══════ Event Actions Dropdown ═══════ */
-const EventActionsDropdown = ({ event, isOpen, onToggle, onChangeStatus, onDelete, isLoading, dropdownRef }) => (
+const EventActionsDropdown = ({ event, isOpen, onToggle, onChangeStatus, onRoomManagement, onDelete, isLoading, dropdownRef }) => (
   <div className="relative inline-block" ref={dropdownRef}>
     <button
       onClick={(e) => { e.stopPropagation(); onToggle(); }}
@@ -440,6 +444,15 @@ const EventActionsDropdown = ({ event, isOpen, onToggle, onChangeStatus, onDelet
     {isOpen && (
       <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg
                       border border-gray-200 dark:border-gray-700 py-1 z-50">
+        {event.teamMode && (
+          <button
+            onClick={onRoomManagement}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium
+                       text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            Manage Free Fire Room
+          </button>
+        )}
         <button
           onClick={onChangeStatus}
           className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium
@@ -468,7 +481,7 @@ const EventActionsDropdown = ({ event, isOpen, onToggle, onChangeStatus, onDelet
 );
 
 /* ═══════ Mobile Event Card ═══════ */
-const MobileEventCard = ({ event, isOpen, onToggle, onChangeStatus, onDelete, isLoading, dropdownRef, getCategoryColor }) => (
+const MobileEventCard = ({ event, isOpen, onToggle, onChangeStatus, onRoomManagement, onDelete, isLoading, dropdownRef, getCategoryColor }) => (
   <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
@@ -479,7 +492,7 @@ const MobileEventCard = ({ event, isOpen, onToggle, onChangeStatus, onDelete, is
       </div>
       <EventActionsDropdown
         event={event} isOpen={isOpen} onToggle={onToggle}
-        onChangeStatus={onChangeStatus} onDelete={onDelete}
+        onChangeStatus={onChangeStatus} onRoomManagement={onRoomManagement} onDelete={onDelete}
         isLoading={isLoading} dropdownRef={dropdownRef}
       />
     </div>

@@ -25,10 +25,12 @@ import TermsPage from './pages/TermsPage';
 // Auth Pages
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 
 // Protected Pages
 import MyTicketsPage from './pages/MyTicketsPage';
 import TicketDetailPage from './pages/TicketDetailPage';
+import PaymentPage from './pages/PaymentPage';
 import SettingsPage from './pages/SettingsPage';
 
 // Organizer Pages
@@ -44,6 +46,8 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminEventsPage from './pages/admin/AdminEventsPage';
 import AdminRegistrationsPage from './pages/admin/AdminRegistrationsPage';
+import AdminPaymentsPage from './pages/admin/AdminPaymentsPage';
+import AdminEventRoomPage from './pages/admin/AdminEventRoomPage';
 
 const App = () => {
   return (
@@ -85,6 +89,7 @@ const App = () => {
           <Route element={<MainLayout />}>
             <Route path="auth/login" element={<LoginPage />} />
             <Route path="auth/register" element={<RegisterPage />} />
+            <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
           </Route>
         </Route>
 
@@ -93,6 +98,7 @@ const App = () => {
           <Route element={<MainLayout />}>
             <Route path="tickets" element={<MyTicketsPage />} />
             <Route path="tickets/:id" element={<TicketDetailPage />} />
+            <Route path="payments" element={<PaymentPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Route>
@@ -115,7 +121,11 @@ const App = () => {
             <Route index element={<AdminDashboardPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="events" element={<AdminEventsPage />} />
+            <Route path="room-management" element={<AdminEventRoomPage />} />
+            <Route path="room-management/:id" element={<AdminEventRoomPage />} />
+            <Route path="events/:id/room" element={<AdminEventRoomPage />} />
             <Route path="registrations" element={<AdminRegistrationsPage />} />
+            <Route path="payments" element={<AdminPaymentsPage />} />
           </Route>
         </Route>
 

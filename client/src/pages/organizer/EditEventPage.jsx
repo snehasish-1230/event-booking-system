@@ -5,6 +5,8 @@ import * as eventService from '../../services/eventService';
 import EventForm from '../../components/organizer/EventForm';
 import StatusBadge from '../../components/ui/StatusBadge';
 import useDocumentTitle from '../../hooks/useDocumentTitle';
+import { formatCurrency } from '../../utils/formatters';
+import EventImage from '../../components/ui/EventImage';
 
 const EditEventPage = () => {
   useDocumentTitle('Edit Event');
@@ -22,7 +24,13 @@ const EditEventPage = () => {
       setLoading(true);
       setError(null);
       const response = await eventService.getEventById(id);
-      setEvent(response.data?.event || response.data || response);
+      const loadedEvent = response.data?.event || response.data || response;
+      setEvent({
+        ...loadedEvent,
+        ...(response.data?.activeRegistrationCount !== undefined && {
+          activeRegistrationCount: response.data.activeRegistrationCount,
+        }),
+      });
     } catch (err) {
       setError(err.message || 'Failed to load event');
       toast.error('Failed to load event');
@@ -101,7 +109,8 @@ const EditEventPage = () => {
   const isCancelled = event?.status?.toLowerCase() === 'cancelled';
   const isDraft = event?.status?.toLowerCase() === 'draft';
   const isPublished = event?.status?.toLowerCase() === 'published';
-  const registrationCount = event?.registeredCount || 0;
+  const registrationCount =
+    event?.activeRegistrationCount ?? event?.registeredCount ?? 0;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -256,13 +265,17 @@ const ReadOnlyView = ({ event }) => {
         </div>
         <div>
           <p className={labelClass}>Price</p>
-          <p className={fieldClass}>{event.price > 0 ? `${event.price} ${event.currency || 'USD'}` : 'Free'}</p>
+          <p className={fieldClass}>{formatCurrency(event.price || 0)}</p>
         </div>
       </div>
       {event.image && (
         <div>
           <p className={labelClass}>Image</p>
-          <img src={event.image} alt={event.title} className="w-full h-48 object-cover rounded-lg mt-1" />
+          <EventImage
+            src={event.image}
+            alt={event.title}
+            className="mt-1 h-48 w-full rounded-lg object-cover"
+          />
         </div>
       )}
     </div>

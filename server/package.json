@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "seed": "node utils/seed.js"
+    "seed": "node utils/seed.js",
+    "unlock-admin": "node utils/unlockAdmin.js",
+    "test": "node testPaymentSystem.js && node testAuthEmailOtp.js && node testEmailService.js && node testPasswordReset.js && node testUploadImage.js && node testEventManagement.js && node testEventRoomManagement.js"
   },
   "keywords": [
     "event-booking",

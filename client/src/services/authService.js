@@ -5,6 +5,42 @@ export const register = async (data) => {
   return response.data;
 };
 
+export const verifyEmail = async (data) => {
+  const response = await axiosInstance.post('/api/auth/verify-email', data);
+  return response.data;
+};
+
+export const resendEmailOtp = async (data) => {
+  const response = await axiosInstance.post('/api/auth/resend-email-otp', data);
+  return response.data;
+};
+
+export const requestPasswordReset = async (data) => {
+  const response = await axiosInstance.post('/api/auth/forgot-password', data);
+  return response.data;
+};
+
+export const verifyPasswordResetOtp = async (data) => {
+  const response = await axiosInstance.post(
+    '/api/auth/verify-password-reset-otp',
+    data
+  );
+  return response.data;
+};
+
+export const resendPasswordResetOtp = async (data) => {
+  const response = await axiosInstance.post(
+    '/api/auth/resend-password-reset-otp',
+    data
+  );
+  return response.data;
+};
+
+export const resetPassword = async (data) => {
+  const response = await axiosInstance.post('/api/auth/reset-password', data);
+  return response.data;
+};
+
 export const login = async (data) => {
   const response = await axiosInstance.post('/api/auth/login', data);
   return response.data;
