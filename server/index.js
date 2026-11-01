@@ -250,6 +250,27 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+
+
+// Connect to MongoDB before handling API requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+
+
+
+
+
+
+
+
 // Route mounting
 const authRoutes = require("./routes/authRoutes");
 const eventRoutes = require("./routes/eventRoutes");
@@ -290,15 +311,24 @@ app.use(errorHandler);
 
 
 
-//new--
-// Vercel serverless handler
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
+
+
+// Start local server during development
+if (require.main === module) {
+  connectDB()
+    .then(() => {
+      verifyConnection();
+
+      app.listen(env.PORT, () => {
+        console.log(
+          `Server running in ${env.NODE_ENV} mode on port ${env.PORT}`
+        );
+      });
+    })
+    .catch((error) => {
+      console.error("Server startup failed:", error);
+      process.exit(1);
+    });
+}
 
 module.exports = app;
