@@ -529,7 +529,7 @@ event-booking-system/
 | Start command | `npm start` |
 
 4. Add all environment variables from the table below, including `NODE_ENV=production`
-5. Set `CLIENT_URL=https://event-booking-system-xi-two.vercel.app` (the deployed frontend origin; do not include a path). Add additional trusted origins as a comma-separated list if needed.
+5. Set `CLIENT_URL=https://event-booking-system-lduatw9x4-ff-team8.vercel.app,https://event-booking-system-xi-two.vercel.app` (comma-separated origins; do not include paths).
 
 ### Frontend (Netlify)
 
@@ -560,7 +560,7 @@ event-booking-system/
 | `MONGO_URI` | MongoDB connection string | — |
 | `JWT_SECRET` | JWT signing secret (min 32 chars in production) | — |
 | `JWT_EXPIRE` | JWT token expiration | `7d` |
-| `CLIENT_URL` | Comma-separated frontend origins for CORS | Production: `https://event-booking-system-xi-two.vercel.app`; local: `http://localhost:5175,http://localhost:5173` |
+| `CLIENT_URL` | Comma-separated frontend origins for CORS | Production: both deployed Vercel origins; local: `http://localhost:5175,http://localhost:5173` |
 | `SMTP_HOST` | SMTP server host | `smtp.gmail.com` |
 | `SMTP_PORT` | SMTP server port | `587` |
 | `SMTP_USER` | SMTP email address | — |

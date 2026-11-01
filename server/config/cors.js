@@ -4,9 +4,14 @@ const localDevelopmentOrigins = [
   "http://localhost:5175",
   "http://localhost:5173",
 ];
+const deployedFrontendOrigins = [
+  "https://event-booking-system-lduatw9x4-ff-team8.vercel.app",
+  "https://event-booking-system-xi-two.vercel.app",
+];
 
 const configureCors = (app, { nodeEnv, clientUrl }) => {
   const allowedOrigins = new Set([
+    ...deployedFrontendOrigins,
     ...(nodeEnv === "development" ? localDevelopmentOrigins : []),
     ...clientUrl.split(",").map((origin) => origin.trim()).filter(Boolean),
   ]);
@@ -25,6 +30,11 @@ const configureCors = (app, { nodeEnv, clientUrl }) => {
   app.use((req, res, next) => {
     const origin = req.get("Origin");
     if (origin && !allowedOrigins.has(origin)) {
+      console.warn("CORS origin rejected", {
+        origin,
+        method: req.method,
+        path: req.originalUrl,
+      });
       return res.status(403).json({
         success: false,
         message: "Origin not allowed",

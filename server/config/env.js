@@ -9,7 +9,7 @@ const env = {
   CLIENT_URL:
     process.env.CLIENT_URL ||
     (process.env.NODE_ENV === 'production'
-      ? 'https://event-booking-system-xi-two.vercel.app'
+      ? 'https://event-booking-system-lduatw9x4-ff-team8.vercel.app,https://event-booking-system-xi-two.vercel.app'
       : 'http://localhost:5175,http://localhost:5173'),
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
   SMTP_PORT: parseInt(process.env.SMTP_PORT, 10) || 587,
