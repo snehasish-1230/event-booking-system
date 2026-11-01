@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+//new--
+const rawBaseUrl = import.meta.env.VITE_API_URL || '';
+const baseURL = rawBaseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '',
+   baseURL,
   timeout: 15000,
   withCredentials: false,
 });
