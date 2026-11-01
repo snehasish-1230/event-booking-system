@@ -1,7 +1,11 @@
 import axiosInstance from './axiosInstance';
 
+const EMAIL_DELIVERY_TIMEOUT_MS = 30000;
+
 export const register = async (data) => {
-  const response = await axiosInstance.post('/api/auth/register', data);
+  const response = await axiosInstance.post('/api/auth/register', data, {
+    timeout: EMAIL_DELIVERY_TIMEOUT_MS,
+  });
   return response.data;
 };
 
@@ -11,12 +15,16 @@ export const verifyEmail = async (data) => {
 };
 
 export const resendEmailOtp = async (data) => {
-  const response = await axiosInstance.post('/api/auth/resend-email-otp', data);
+  const response = await axiosInstance.post('/api/auth/resend-email-otp', data, {
+    timeout: EMAIL_DELIVERY_TIMEOUT_MS,
+  });
   return response.data;
 };
 
 export const requestPasswordReset = async (data) => {
-  const response = await axiosInstance.post('/api/auth/forgot-password', data);
+  const response = await axiosInstance.post('/api/auth/forgot-password', data, {
+    timeout: EMAIL_DELIVERY_TIMEOUT_MS,
+  });
   return response.data;
 };
 
@@ -31,7 +39,8 @@ export const verifyPasswordResetOtp = async (data) => {
 export const resendPasswordResetOtp = async (data) => {
   const response = await axiosInstance.post(
     '/api/auth/resend-password-reset-otp',
-    data
+    data,
+    { timeout: EMAIL_DELIVERY_TIMEOUT_MS }
   );
   return response.data;
 };

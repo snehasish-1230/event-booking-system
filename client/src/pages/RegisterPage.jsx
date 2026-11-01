@@ -212,7 +212,14 @@ const RegisterPage = () => {
     } catch (error) {
       const data = error.response?.data;
 
-      if (data?.errors) {
+      if (
+        !error.response &&
+        ['ECONNABORTED', 'ETIMEDOUT'].includes(error.code)
+      ) {
+        setApiError(
+          'The registration request timed out. Check your email before retrying; the verification message may already have been submitted.'
+        );
+      } else if (data?.errors) {
         if (Array.isArray(data.errors)) {
           const fieldErrors = {};
           data.errors.forEach((error) => {
@@ -288,10 +295,15 @@ const RegisterPage = () => {
       );
       setVerificationCode('');
     } catch (error) {
+      const timedOut =
+        !error.response &&
+        ['ECONNABORTED', 'ETIMEDOUT'].includes(error.code);
       setVerificationError(
-        error.response?.data?.message ||
-          error.message ||
-          'Unable to resend the code. Please try again later.'
+        timedOut
+          ? 'The resend request timed out. Check your email before requesting another code.'
+          : error.response?.data?.message ||
+            error.message ||
+            'Unable to resend the code. Please try again later.'
       );
       const retryAfter = Number(error.response?.headers?.['retry-after']);
       if (Number.isFinite(retryAfter) && retryAfter > 0) {
