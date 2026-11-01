@@ -13,7 +13,13 @@ const { isPaidEvent } = require('./utils/eventPricing');
 
 const id = () => new mongoose.Types.ObjectId();
 
-const testPaymentSchemas = () => {
+const validateDocument = (document) =>
+  document.validate().then(
+    () => undefined,
+    (error) => error
+  );
+
+const testPaymentSchemas = async () => {
   const payment = new Payment({
     user: id(),
     booking: id(),
@@ -30,10 +36,10 @@ const testPaymentSchemas = () => {
   assert.strictEqual(payment.status, 'PENDING');
   assert.strictEqual(payment.currency, 'INR');
   assert.strictEqual(payment.paymentMethod, 'UPI_QR');
-  assert.strictEqual(payment.validateSync(), undefined);
+  assert.strictEqual(await validateDocument(payment), undefined);
 
   payment.status = 'COMPLETED';
-  assert.ok(payment.validateSync()?.errors?.status, 'Unknown payment statuses must be rejected');
+  assert.ok((await validateDocument(payment))?.errors?.status, 'Unknown payment statuses must be rejected');
 
   const invalidFreeFireUid = new Payment({
     user: id(),
@@ -44,7 +50,7 @@ const testPaymentSchemas = () => {
     freeFireAccountName: 'Player Two',
     freeFireUid: '12AB34',
   });
-  assert.ok(invalidFreeFireUid.validateSync()?.errors?.freeFireUid, 'Free Fire UID must contain digits only');
+  assert.ok((await validateDocument(invalidFreeFireUid))?.errors?.freeFireUid, 'Free Fire UID must contain digits only');
 
   const invalidPaymentPhone = new Payment({
     user: id(),
@@ -54,7 +60,7 @@ const testPaymentSchemas = () => {
     paymentScreenshot: '/uploads/payment-test.jpg',
     phoneNumber: 'not a phone',
   });
-  assert.ok(invalidPaymentPhone.validateSync()?.errors?.phoneNumber, 'Payment phone number must be valid');
+  assert.ok((await validateDocument(invalidPaymentPhone))?.errors?.phoneNumber, 'Payment phone number must be valid');
 
   const legacyPayment = Payment.hydrate({
     _id: id(),
@@ -65,7 +71,7 @@ const testPaymentSchemas = () => {
     paymentScreenshot: '/uploads/legacy-payment.jpg',
     status: 'PENDING',
   });
-  assert.strictEqual(legacyPayment.validateSync(), undefined, 'Legacy payments without Free Fire details must remain valid');
+  assert.strictEqual(await validateDocument(legacyPayment), undefined, 'Legacy payments without Free Fire details must remain valid');
 
   const testPayment = new TestPayment({
     user: id(),
@@ -75,10 +81,10 @@ const testPaymentSchemas = () => {
   });
   assert.strictEqual(testPayment.testOnly, true);
   assert.strictEqual(testPayment.status, 'PENDING');
-  assert.strictEqual(testPayment.validateSync(), undefined);
+  assert.strictEqual(await validateDocument(testPayment), undefined);
 };
 
-const testEventCurrencyDefaults = () => {
+const testEventCurrencyDefaults = async () => {
   const event = new Event({
     title: 'INR Currency Test',
     description: 'An event model currency default test.',
@@ -105,7 +111,7 @@ const testEventCurrencyDefaults = () => {
     pricingType: 'FREE',
   });
   assert.strictEqual(freeEvent.pricingType, 'FREE');
-  assert.strictEqual(freeEvent.validateSync(), undefined);
+  assert.strictEqual(await validateDocument(freeEvent), undefined);
   assert.strictEqual(isPaidEvent(freeEvent), false);
   assert.strictEqual(isPaidEvent({ price: 250 }), true, 'Legacy positive prices remain paid');
 
@@ -120,7 +126,7 @@ const testEventCurrencyDefaults = () => {
     price: 499,
     currency: 'USD',
   });
-  assert.ok(nonInrNewEvent.validateSync()?.errors?.currency);
+  assert.ok((await validateDocument(nonInrNewEvent))?.errors?.currency);
 
   const legacyEvent = Event.hydrate({
     _id: id(),
@@ -136,20 +142,20 @@ const testEventCurrencyDefaults = () => {
     organizer: id(),
     status: 'published',
   });
-  assert.strictEqual(legacyEvent.validateSync(), undefined);
+  assert.strictEqual(await validateDocument(legacyEvent), undefined);
 };
 
-const testRegistrationStatusesAndIndexes = () => {
+const testRegistrationStatusesAndIndexes = async () => {
   const paidRegistration = new Registration({
     user: id(),
     event: id(),
     status: 'pending',
     paymentStatus: 'PENDING',
   });
-  assert.strictEqual(paidRegistration.validateSync(), undefined);
+  assert.strictEqual(await validateDocument(paidRegistration), undefined);
 
   paidRegistration.status = 'awaiting-payment';
-  assert.ok(paidRegistration.validateSync()?.errors?.status, 'Unknown registration statuses must be rejected');
+  assert.ok((await validateDocument(paidRegistration))?.errors?.status, 'Unknown registration statuses must be rejected');
 
   const registrationIndexes = Registration.schema.indexes();
   assert.ok(registrationIndexes.some(([keys, options]) =>
@@ -208,9 +214,9 @@ const testPaymentPhoneValidation = async () => {
 
 const run = async () => {
   await testPaymentPhoneValidation();
-  testPaymentSchemas();
-  testEventCurrencyDefaults();
-  testRegistrationStatusesAndIndexes();
+  await testPaymentSchemas();
+  await testEventCurrencyDefaults();
+  await testRegistrationStatusesAndIndexes();
   testScreenshotFormats();
   testEmailVerificationSchema();
   console.log('Payment and registration schema checks passed.');

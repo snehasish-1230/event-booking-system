@@ -3,8 +3,8 @@ const path = require('path');
 
 process.env.JWT_SECRET = 'test-only-jwt-secret-long-enough-for-otp-hashing';
 process.env.EMAIL_OTP_SECRET = 'test-only-email-otp-secret';
-process.env.SMTP_USER = 'test@example.com';
-process.env.SMTP_PASS = 'test-only-password';
+process.env.RESEND_API_KEY = 're_test-only-key';
+process.env.EMAIL_FROM = 'EventBooking <sender@example.test>';
 process.env.NODE_ENV = 'test';
 
 const userPath = require.resolve('./models/User');
@@ -570,8 +570,8 @@ const run = async () => {
   assert.equal(pendingFailureUser.emailOtpHash, undefined);
 
   const config = require('./config/env');
-  config.SMTP_USER = undefined;
-  config.SMTP_PASS = undefined;
+  config.RESEND_API_KEY = undefined;
+  config.EMAIL_FROM = undefined;
   delete require.cache[emailServicePath];
   const emailService = require('./utils/emailService');
   await assert.rejects(
@@ -582,7 +582,7 @@ const run = async () => {
     }),
     (error) =>
       error.code === 'EMAIL_NOT_CONFIGURED' &&
-      /SMTP_USER and SMTP_PASS/.test(error.message)
+      /RESEND_API_KEY and EMAIL_FROM/.test(error.message)
   );
 
   const unknownResend = await invoke(authController.resendEmailOtp, {

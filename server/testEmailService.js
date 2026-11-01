@@ -1,111 +1,172 @@
 const assert = require('assert/strict');
-const nodemailer = require('nodemailer');
 const env = require('./config/env');
 
-const originalCreateTransport = nodemailer.createTransport;
+const originalFetch = global.fetch;
 const originalInfo = console.info;
+const originalWarn = console.warn;
 const originalError = console.error;
 const logs = [];
 const outcomes = [];
-const sentMessages = [];
-let transportOptions;
+const requests = [];
 
-env.SMTP_USER = 'sender@example.test';
-env.SMTP_PASS = 'test-secret-not-for-logging';
-env.SMTP_HOST = 'smtp.gmail.com';
-env.SMTP_PORT = 465;
-nodemailer.createTransport = (options) => {
-  transportOptions = options;
-  return {
-    sendMail: async (message) => {
-      sentMessages.push(message);
-      const outcome = outcomes.shift();
-      if (outcome instanceof Error) throw outcome;
-      return outcome;
-    },
-    verify: async () => true,
-  };
+env.RESEND_API_KEY = 're_test-only-key';
+env.EMAIL_FROM = 'EventBooking <sender@example.test>';
+env.EMAIL_FROM_NAME = 'EventBooking';
+
+global.fetch = async (url, options) => {
+  requests.push({
+    url,
+    hasAuthorization: Boolean(options.headers.get('authorization')),
+    payload: JSON.parse(options.body),
+  });
+  const outcome = outcomes.shift();
+  if (outcome instanceof Error) throw outcome;
+  return new Response(JSON.stringify(outcome.body), {
+    status: outcome.status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 };
 console.info = (...args) => logs.push(args);
+console.warn = (...args) => logs.push(args);
 console.error = (...args) => logs.push(args);
 delete require.cache[require.resolve('./utils/emailService')];
 const emailService = require('./utils/emailService');
 
-const smtpAccepted = (to, messageId) => ({
-  messageId,
-  accepted: [to],
-  rejected: [],
-  response: '250 2.0.0 Message accepted for processing',
-});
+const response = (body, status = 200) => ({ body, status });
 
 const run = async () => {
-  assert.equal(transportOptions.host, 'smtp.gmail.com');
-  assert.equal(transportOptions.port, 465);
-  assert.equal(transportOptions.secure, true);
-  assert.equal(transportOptions.connectionTimeout, 10000);
-  assert.equal(transportOptions.greetingTimeout, 10000);
-  assert.equal(transportOptions.socketTimeout, 15000);
   assert.equal(await emailService.verifyConnection(), true);
 
-  const recipients = ['first.recipient@gmail.com', 'second.recipient@gmail.com'];
+  const recipients = ['first.recipient@example.test', 'second.recipient@example.test'];
   for (const [index, recipient] of recipients.entries()) {
-    outcomes.push(smtpAccepted(recipient, `<accepted-${index}@example.test>`));
+    outcomes.push(response({ id: `resend-message-${index}` }));
     const result = await emailService.sendVerificationEmail({
       to: recipient,
       subject: 'Test OTP subject',
       html: '<p>OTP 123456</p>',
     });
     assert.equal(result.submitted, true);
-    assert.equal(result.messageId, `<accepted-${index}@example.test>`);
+    assert.equal(result.messageId, `resend-message-${index}`);
   }
 
-  const rejectedRecipient = 'rejected.recipient@gmail.com';
-  outcomes.push({
-    messageId: '<rejected@example.test>',
-    accepted: [],
-    rejected: [rejectedRecipient],
-    responseCode: 550,
-    response: `550 5.1.1 ${rejectedRecipient} user unknown`,
-  });
+  assert.equal(requests[0].url, 'https://api.resend.com/emails');
+  assert.equal(requests[0].hasAuthorization, true);
+  assert.equal(requests[0].payload.from, env.EMAIL_FROM);
+  assert.equal(requests[0].payload.to, recipients[0]);
+  assert.equal(requests[0].payload.subject, 'Test OTP subject');
+
+  outcomes.push(response({
+    name: 'validation_error',
+    statusCode: 422,
+    message: 'Rejected recipient rejected.recipient@example.test',
+  }, 422));
   await assert.rejects(
     emailService.sendVerificationEmail({
-      to: rejectedRecipient,
+      to: 'rejected.recipient@example.test',
       subject: 'Test OTP subject',
       html: '<p>OTP 654321</p>',
     }),
-    (error) => error.code === 'EMAIL_RECIPIENT_REJECTED'
+    (error) => error.code === 'EMAIL_DELIVERY_FAILED'
   );
 
-  const smtpError = new Error('SMTP authentication failed');
-  smtpError.code = 'EAUTH';
-  smtpError.responseCode = 535;
-  smtpError.command = 'AUTH PLAIN';
-  outcomes.push(smtpError);
+  outcomes.push(response({
+    name: 'authentication_error',
+    statusCode: 401,
+    message: 'Invalid key re_test-only-key',
+  }, 401));
   await assert.rejects(
     emailService.sendVerificationEmail({
-      to: 'smtp.failure@gmail.com',
+      to: 'authentication.failure@example.test',
+      subject: 'Test OTP subject',
+      html: '<p>OTP 223344</p>',
+    }),
+    (error) => error.code === 'EMAIL_PROVIDER_AUTH_FAILED'
+  );
+
+  outcomes.push(new Error('Network failed for network.failure@example.test'));
+  await assert.rejects(
+    emailService.sendVerificationEmail({
+      to: 'network.failure@example.test',
       subject: 'Test OTP subject',
       html: '<p>OTP 987654</p>',
     }),
-    (error) => error.code === 'EAUTH'
+    (error) => error.code === 'EMAIL_DELIVERY_FAILED'
   );
 
-  assert.equal(sentMessages.length, 4);
+  outcomes.push(response({ id: 'resend-message-not-used' }));
   assert.deepEqual(
-    logs.filter(([message]) => message === 'Transactional email SMTP submission result:').length,
-    4
+    await emailService.sendEmail({
+      to: 'notification@example.test',
+      subject: 'Notification',
+      html: '<p>Notification</p>',
+    }),
+    { success: true }
   );
+
+  outcomes.push(response({
+    name: 'application_error',
+    statusCode: 503,
+    message: 'Provider unavailable',
+  }, 503));
+  assert.deepEqual(
+    await emailService.sendEmail({
+      to: 'notification@example.test',
+      subject: 'Notification',
+      html: '<p>Notification</p>',
+    }),
+    { success: false }
+  );
+
+  outcomes.push(response({}));
+  await assert.rejects(
+    emailService.sendVerificationEmail({
+      to: 'missing-id@example.test',
+      subject: 'Test OTP subject',
+      html: '<p>OTP 112233</p>',
+    }),
+    (error) => error.code === 'EMAIL_DELIVERY_FAILED'
+  );
+
+  env.RESEND_API_KEY = undefined;
+  env.EMAIL_FROM = undefined;
+  assert.equal(await emailService.verifyConnection(), false);
+  await assert.rejects(
+    emailService.sendVerificationEmail({
+      to: 'unconfigured@example.test',
+      subject: 'Test',
+      html: '<p>Test</p>',
+    }),
+    (error) => error.code === 'EMAIL_NOT_CONFIGURED'
+  );
+
   const serializedLogs = JSON.stringify(logs);
-  for (const recipient of [...recipients, rejectedRecipient, 'smtp.failure@gmail.com']) {
-    assert.equal(serializedLogs.includes(recipient), false, 'SMTP diagnostics must mask recipient addresses');
+  for (const recipient of [
+    ...recipients,
+    'rejected.recipient@example.test',
+    'authentication.failure@example.test',
+    'network.failure@example.test',
+    'notification@example.test',
+    'missing-id@example.test',
+    'unconfigured@example.test',
+  ]) {
+    assert.equal(serializedLogs.includes(recipient), false, 'Email diagnostics must mask recipients');
   }
-  for (const secret of ['123456', '654321', '987654', env.SMTP_PASS]) {
-    assert.equal(serializedLogs.includes(secret), false, 'SMTP diagnostics must not log OTPs or credentials');
+  for (const secret of [
+    '123456',
+    '654321',
+    '223344',
+    '987654',
+    '112233',
+    're_test-only-key',
+    'Network failed',
+    'Rejected recipient',
+  ]) {
+    assert.equal(serializedLogs.includes(secret), false, 'Email diagnostics must not log secrets or provider messages');
   }
-  assert.ok(serializedLogs.includes('<accepted-0@example.test>'), 'SMTP message IDs should be recorded');
+  assert.ok(serializedLogs.includes('resend-message-0'));
   assert.ok(serializedLogs.includes('recipientAccepted'));
 
-  console.log('Transactional email SMTP result checks passed for multiple simulated recipients.');
+  console.log('Resend submission, failure, configuration, and redaction checks passed.');
 };
 
 run()
@@ -114,7 +175,8 @@ run()
     process.exitCode = 1;
   })
   .finally(() => {
-    nodemailer.createTransport = originalCreateTransport;
+    global.fetch = originalFetch;
     console.info = originalInfo;
+    console.warn = originalWarn;
     console.error = originalError;
   });

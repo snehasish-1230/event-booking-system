@@ -1,169 +1,124 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const env = require('../config/env');
 
-const transporter = nodemailer.createTransport({
-  host: env.SMTP_HOST,
-  port: env.SMTP_PORT,
-  secure: env.SMTP_PORT === 465,
-  requireTLS: env.SMTP_PORT !== 465,
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  ...(env.SMTP_USER && env.SMTP_PASS
-    ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASS } }
-    : {}),
-});
+const EMAIL_REQUEST_TIMEOUT_MS = 10000;
+let resendClient;
 
-const getAddress = (value) => {
-  if (typeof value !== 'string') return '';
-  return value.match(/<([^<>]+)>/)?.[1]?.trim().toLowerCase()
-    || value.trim().toLowerCase();
+const getResendClient = () => {
+  if (!env.RESEND_API_KEY) {
+    const error = new Error('RESEND_API_KEY must be configured');
+    error.code = 'EMAIL_NOT_CONFIGURED';
+    throw error;
+  }
+
+  if (!resendClient) {
+    resendClient = new Resend(env.RESEND_API_KEY);
+  }
+  return resendClient;
 };
 
 const maskRecipient = (recipient) => {
-  const address = getAddress(recipient);
-  const [localPart, domain] = address.split('@');
+  const address = Array.isArray(recipient) ? recipient[0] : recipient;
+  if (typeof address !== 'string') return 'unavailable';
+  const normalizedAddress =
+    address.match(/<([^<>]+)>/)?.[1]?.trim().toLowerCase()
+    || address.trim().toLowerCase();
+  const [localPart, domain] = normalizedAddress.split('@');
   if (!localPart || !domain) return 'unavailable';
   return `${localPart.slice(0, 1)}***@${domain}`;
 };
 
-const sanitizeDiagnostic = (value) => {
-  if (typeof value !== 'string') return undefined;
-  return value
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
-    .replace(/[\r\n]+/g, ' ')
-    .slice(0, 300);
-};
-
-const logTransactionalAttempt = ({ to, info, error, recipientAccepted }) => {
+const logSubmission = ({ to, messageId, error, success }) => {
   const diagnostics = {
     recipient: maskRecipient(to),
-    submissionStatus: recipientAccepted ? 'accepted' : 'failed_or_rejected',
-    recipientAccepted,
-    messageId: info?.messageId || undefined,
-    acceptedCount: Array.isArray(info?.accepted) ? info.accepted.length : 0,
-    rejectedCount: Array.isArray(info?.rejected) ? info.rejected.length : 0,
-    responseCode: info?.responseCode
-      || error?.responseCode
-      || info?.response?.match(/^\s*(\d{3})/)?.[1]
-      || undefined,
-    smtpCode: error?.code || undefined,
-    command: info?.command || error?.command || undefined,
-    response: sanitizeDiagnostic(info?.response || error?.response),
+    submissionStatus: success ? 'accepted' : 'failed_or_rejected',
+    recipientAccepted: success,
+    messageId: success ? messageId : undefined,
+    providerError: error?.name,
+    statusCode: Number.isInteger(error?.statusCode)
+      ? error.statusCode
+      : undefined,
   };
-  const log = recipientAccepted ? console.info : console.error;
-  log('Transactional email SMTP submission result:', diagnostics);
+  (success ? console.info : console.error)(
+    'Transactional email Resend submission result:',
+    diagnostics
+  );
 };
 
-const logSmtpFailure = (event, error) => {
-  console.error(event, {
-    code: error?.code,
-    command: error?.command,
-    responseCode: error?.responseCode,
-    name: error?.name,
-  });
+const createDeliveryError = (code = 'EMAIL_DELIVERY_FAILED') => {
+  const error = new Error('Email provider did not confirm the submission');
+  error.code = code;
+  return error;
 };
 
-/**
- * Sends an email via the configured SMTP transporter.
- * Failures are logged but never thrown — email errors
- * must not break the main application flow.
- */
-const sendEmail = async ({ to, subject, html }) => {
+const sendTransactionalEmail = async ({ to, subject, html }) => {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+    const error = new Error(
+      'RESEND_API_KEY and EMAIL_FROM must be configured for email delivery'
+    );
+    error.code = 'EMAIL_NOT_CONFIGURED';
+    logSubmission({ to, error, success: false });
+    throw error;
+  }
+
+  let response;
   try {
-    await transporter.sendMail({
-      from: `"${env.SMTP_FROM_NAME}" <${env.SMTP_USER}>`,
-      to,
-      subject,
-      html,
-    });
-
-    return { success: true };
+    response = await getResendClient().emails.send(
+      {
+        from: env.EMAIL_FROM,
+        to,
+        subject,
+        html,
+      },
+      { signal: AbortSignal.timeout(EMAIL_REQUEST_TIMEOUT_MS) }
+    );
   } catch (error) {
-    logTransactionalAttempt({ to, error, recipientAccepted: false });
+    logSubmission({ to, error, success: false });
+    throw createDeliveryError();
+  }
+
+  const messageId = response?.data?.id;
+  if (response?.error || typeof messageId !== 'string' || !messageId) {
+    logSubmission({
+      to,
+      error: response?.error,
+      success: false,
+    });
+    throw createDeliveryError(
+      response?.error?.statusCode === 401 ||
+        response?.error?.statusCode === 403
+        ? 'EMAIL_PROVIDER_AUTH_FAILED'
+        : 'EMAIL_DELIVERY_FAILED'
+    );
+  }
+
+  logSubmission({ to, messageId, success: true });
+  return { submitted: true, messageId };
+};
+
+const sendEmail = async (options) => {
+  try {
+    await sendTransactionalEmail(options);
+    return { success: true };
+  } catch {
     return { success: false };
   }
 };
 
-/**
- * Verifies the SMTP connection at startup.
- * Logs a warning instead of crashing when SMTP is not configured
- * (typical in development mode).
- */
 const verifyConnection = async () => {
-  if (!env.SMTP_USER || !env.SMTP_PASS) {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
     const error = new Error(
-      'SMTP_USER and SMTP_PASS must be configured before production startup'
+      'RESEND_API_KEY and EMAIL_FROM must be configured before production startup'
     );
     error.code = 'EMAIL_NOT_CONFIGURED';
     if (env.NODE_ENV === 'production') throw error;
-    console.warn('SMTP credentials not configured — email sending is disabled');
+    console.warn('Resend email configuration is incomplete — email sending is disabled');
     return false;
   }
 
-  try {
-    await transporter.verify();
-    console.log('SMTP connection verified — email service is ready');
-    return true;
-  } catch (error) {
-    logSmtpFailure('SMTP connection verification failed:', error);
-    if (env.NODE_ENV === 'production') {
-      const verificationError = new Error(
-        'SMTP connection verification failed; check SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS'
-      );
-      verificationError.code = 'SMTP_VERIFICATION_FAILED';
-      throw verificationError;
-    }
-    return false;
-  }
-};
-
-const sendTransactionalEmail = async ({ to, subject, html }) => {
-  if (!env.SMTP_USER || !env.SMTP_PASS) {
-    console.error('Transactional email SMTP submission unavailable:', {
-      recipient: maskRecipient(to),
-      recipientAccepted: false,
-      reason: 'SMTP credentials are not configured',
-    });
-    const error = new Error(
-      'Email verification requires SMTP_USER and SMTP_PASS to be configured'
-    );
-    error.code = 'EMAIL_NOT_CONFIGURED';
-    throw error;
-  }
-
-  let info;
-  try {
-    info = await transporter.sendMail({
-      from: `"${env.SMTP_FROM_NAME}" <${env.SMTP_USER}>`,
-      to,
-      subject,
-      html,
-    });
-  } catch (error) {
-    logTransactionalAttempt({ to, error, recipientAccepted: false });
-    throw error;
-  }
-
-  const recipient = getAddress(to);
-  const acceptedRecipients = new Set((info.accepted || []).map(getAddress));
-  const rejectedRecipients = new Set((info.rejected || []).map(getAddress));
-  const recipientAccepted =
-    acceptedRecipients.has(recipient) && !rejectedRecipients.has(recipient);
-  logTransactionalAttempt({ to, info, recipientAccepted });
-
-  if (!recipientAccepted) {
-    const error = new Error('SMTP did not accept the email recipient');
-    error.code = 'EMAIL_RECIPIENT_REJECTED';
-    error.responseCode = info.responseCode;
-    error.command = info.command;
-    throw error;
-  }
-
-  return {
-    submitted: true,
-    messageId: info.messageId,
-  };
+  getResendClient();
+  console.info('Resend email service configuration is ready');
+  return true;
 };
 
 const sendVerificationEmail = (options) => sendTransactionalEmail(options);

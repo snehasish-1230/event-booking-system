@@ -124,7 +124,7 @@ event-booking-system/
 
 **Dependencies (server):**
 
-- Runtime: `express`, `mongoose`, `bcryptjs`, `jsonwebtoken`, `dotenv`, `cors`, `helmet`, `morgan`, `express-rate-limit`, `express-validator`, `express-mongo-sanitize`, `multer`, `nodemailer`, `slugify`, `uuid`, `date-fns`, `swagger-jsdoc`, `swagger-ui-express`
+- Runtime: `express`, `mongoose`, `bcryptjs`, `jsonwebtoken`, `dotenv`, `cors`, `helmet`, `morgan`, `express-rate-limit`, `express-validator`, `express-mongo-sanitize`, `multer`, `resend`, `slugify`, `uuid`, `date-fns`, `swagger-jsdoc`, `swagger-ui-express`
 - Dev: `nodemon`
 
 **Implementation notes:**
@@ -145,8 +145,8 @@ event-booking-system/
 
 **Implementation notes:**
 
-- Export a single `env` object reading `process.env` with defaults (`PORT=5002`, `NODE_ENV=development`, local `MONGO_URI`, `JWT_EXPIRE=7d`, `CLIENT_URL`, `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `UPLOAD_MAX_SIZE=5242880`).
-- In production, throw at boot if `JWT_SECRET` is missing or under 32 chars, or if `SMTP_USER`/`SMTP_PASS` are missing.
+- Export a single `env` object reading `process.env` with defaults (`PORT=5002`, `NODE_ENV=development`, local `MONGODB_URI`, `JWT_EXPIRE=7d`, `CLIENT_URL`, `UPLOAD_MAX_SIZE=5242880`).
+- In production, throw at boot if `MONGODB_URI` (or its legacy alias `MONGO_URI`), `JWT_SECRET` (minimum 32 chars), `RESEND_API_KEY`, or `EMAIL_FROM` is missing.
 - Keep all secrets out of source; `.env.example` documents every variable with placeholder values only.
 
 **Acceptance:** Requiring `config/env` in development never throws; production fails fast on missing critical vars.
@@ -161,10 +161,10 @@ event-booking-system/
 
 **Implementation notes:**
 
-- Export an async `connectDB()` that calls `mongoose.connect(env.MONGO_URI)` and logs the host on success.
+- Export an async `connectDB()` that calls `mongoose.connect(env.MONGODB_URI)` and logs the host on success.
 - On connection error, log and exit the process with a non-zero code.
 
-**Acceptance:** Server logs a successful connection against a valid `MONGO_URI`.
+**Acceptance:** Server logs a successful connection against a valid `MONGODB_URI`.
 
 ---
 
@@ -295,11 +295,11 @@ event-booking-system/
 
 **Implementation notes:**
 
-- Nodemailer transporter from `SMTP_*` env; `sendEmail({to,subject,html})` catches and logs errors, never throws.
-- `verifyConnection()` warns (does not crash) when SMTP is unconfigured — typical in development.
+- Resend SDK from `RESEND_API_KEY` and `EMAIL_FROM`; `sendEmail({to,subject,html})` catches and logs safe errors, never throws.
+- `verifyConnection()` validates configuration without making a network request; missing settings warn in development and fail startup in production.
 - Templates are functions returning HTML; escape all user-provided values with `escapeHtml`.
 
-**Acceptance:** Registration/cancellation send email when configured; missing SMTP logs a warning and the app still works.
+**Acceptance:** Registration/cancellation send email when configured; missing Resend configuration logs a warning in development and fails email-dependent flows safely.
 
 ---
 

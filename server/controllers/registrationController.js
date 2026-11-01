@@ -191,7 +191,7 @@ const registerForEvent = async (req, res, next) => {
               cancelledAt: null,
             },
           },
-          { new: true, runValidators: true }
+          { returnDocument: 'after', runValidators: true }
         );
         if (!registration) {
           throw new AppError('You are already registered for this event', 409);

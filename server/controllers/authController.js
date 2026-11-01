@@ -170,7 +170,7 @@ const sendOtp = async (user, isResend = false) => {
     deliveryUser = await User.findOneAndUpdate(
       resendFilter,
       resendUpdate,
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!deliveryUser) {
       throw retryError(
@@ -210,12 +210,12 @@ const sendOtp = async (user, isResend = false) => {
     );
     console.error(
       error.code === 'EMAIL_NOT_CONFIGURED'
-        ? 'Email verification delivery unavailable: SMTP_USER and SMTP_PASS are required.'
-        : 'Email verification delivery failed. Check the configured SMTP service.'
+        ? 'Email verification delivery unavailable: RESEND_API_KEY and EMAIL_FROM are required.'
+        : 'Email verification delivery failed. Check the configured Resend service.'
     );
     throw new AppError(
       error.code === 'EMAIL_NOT_CONFIGURED'
-        ? 'Email verification is temporarily unavailable. Configure SMTP_USER and SMTP_PASS.'
+        ? 'Email verification is temporarily unavailable. Configure RESEND_API_KEY and EMAIL_FROM.'
         : 'Unable to send the verification email. Please try again later.',
       503
     );
@@ -383,7 +383,7 @@ const verifyEmail = async (req, res, next) => {
           emailOtpResendCount: 1,
         },
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!verifiedUser) {

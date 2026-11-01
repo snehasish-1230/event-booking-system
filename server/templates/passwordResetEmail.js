@@ -4,7 +4,7 @@ const escapeHtml = require('../utils/escapeHtml');
 const generatePasswordResetEmail = ({ userName, otp }) => {
   const safeUserName = escapeHtml(userName);
   const safeOtp = escapeHtml(otp);
-  const brandName = escapeHtml(env.SMTP_FROM_NAME);
+  const brandName = escapeHtml(env.EMAIL_FROM_NAME);
 
   return `
 <!DOCTYPE html>

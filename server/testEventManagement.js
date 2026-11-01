@@ -18,6 +18,12 @@ emailService.sendEmail = originalSendEmail;
 const { validateTeamRegistration } = registrationController;
 const { isPaidEvent } = require('./utils/eventPricing');
 
+const validateDocument = (document) =>
+  document.validate().then(
+    () => undefined,
+    (error) => error
+  );
+
 const userId = new mongoose.Types.ObjectId();
 const eventData = {
   title: 'Capacity Validation Event',
@@ -69,7 +75,7 @@ const testCurrencyValidatorContexts = () => {
   );
 };
 
-const testRegistrationRosterValidation = () => {
+const testRegistrationRosterValidation = async () => {
   const teamSizes = { SOLO: 1, DUO: 2, TRIO: 3, SQUAD: 4 };
   const playersValidator = Registration.schema
     .path('players')
@@ -99,7 +105,7 @@ const testRegistrationRosterValidation = () => {
 
     assert.equal(validRegistration.players.length, size, `${mode} API roster size`);
     assert.equal(validRegistration.players[0].playerName, `${mode} Player 1`);
-    assert.equal(createRegistration(mode, players).validateSync(), undefined, `${mode} model validation`);
+    assert.equal(await validateDocument(createRegistration(mode, players)), undefined, `${mode} model validation`);
     assert.equal(
       playersValidator.call(
         {
@@ -120,7 +126,7 @@ const testRegistrationRosterValidation = () => {
       /requires exactly/
     );
     assert.ok(
-      createRegistration(mode, players.slice(1)).validateSync()?.errors?.players,
+      (await validateDocument(createRegistration(mode, players.slice(1))))?.errors?.players,
       `${mode} model rejects a short roster`
     );
 
@@ -131,7 +137,7 @@ const testRegistrationRosterValidation = () => {
         () => validateTeamRegistration(eventFormat, { players: duplicateUidRoster }),
         /unique Free Fire UID/
       );
-      assert.ok(createRegistration(mode, duplicateUidRoster).validateSync()?.errors?.players);
+      assert.ok((await validateDocument(createRegistration(mode, duplicateUidRoster)))?.errors?.players);
     }
 
     const missingUidRoster = players.map((player) => ({ ...player }));
@@ -146,7 +152,7 @@ const testRegistrationRosterValidation = () => {
       () => validateTeamRegistration(eventFormat, { players: missingNameRoster }),
       /valid player name and numeric Free Fire UID/
     );
-    assert.ok(createRegistration(mode, missingUidRoster).validateSync()?.errors?.players);
+    assert.ok((await validateDocument(createRegistration(mode, missingUidRoster)))?.errors?.players);
 
     const paidEvent = { ...eventFormat, pricingType: 'PAID', price: 1 };
     const freeEvent = { ...eventFormat, pricingType: 'FREE', price: 0 };
@@ -156,14 +162,14 @@ const testRegistrationRosterValidation = () => {
 
   const soloPlayers = [{ playerName: 'Solo Player', freeFireUid: '123456789' }];
   assert.equal(
-    createRegistration(undefined, soloPlayers, {
+    await validateDocument(createRegistration(undefined, soloPlayers, {
       gameMode: 'SOLO',
       teamSize: 1,
-    }).validateSync(),
+    })),
     undefined
   );
   assert.equal(
-    createRegistration(undefined, soloPlayers, { teamSize: 1 }).validateSync(),
+    await validateDocument(createRegistration(undefined, soloPlayers, { teamSize: 1 })),
     undefined
   );
   assert.equal(
@@ -181,13 +187,13 @@ const testRegistrationRosterValidation = () => {
     /Team format does not match/
   );
   assert.ok(
-    createRegistration('SQUAD', [
+    (await validateDocument(createRegistration('SQUAD', [
       { playerName: '', freeFireUid: '1234' },
       ...Array.from({ length: 3 }, (_, index) => ({
         playerName: `Player ${index + 2}`,
         freeFireUid: String(500000 + index),
       })),
-    ]).validateSync()?.errors?.['players.0.playerName']
+    ])))?.errors?.['players.0.playerName']
   );
 };
 
@@ -277,7 +283,7 @@ const testMinimumMembers = async () => {
   });
   assert.equal(event.minParticipants, 2);
   assert.equal(event.pricingType, 'PAID');
-  assert.equal(event.validateSync(), undefined);
+  assert.equal(await validateDocument(event), undefined);
   const mismatchedTeamFormat = new Event({
     ...eventData,
     organizer: userId,
@@ -286,9 +292,9 @@ const testMinimumMembers = async () => {
     gameMode: 'DUO',
     teamSize: 4,
   });
-  assert.ok(mismatchedTeamFormat.validateSync()?.errors?.teamSize);
+  assert.ok((await validateDocument(mismatchedTeamFormat))?.errors?.teamSize);
   event.capacity = 1;
-  assert.ok(event.validateSync()?.errors?.minParticipants);
+  assert.ok((await validateDocument(event))?.errors?.minParticipants);
 
   const minimumValidator = Event.schema
     .path('minParticipants')
@@ -303,12 +309,12 @@ const testMinimumMembers = async () => {
     pricingType: 'FREE',
     price: 0,
   });
-  assert.equal(freeEvent.validateSync(), undefined);
+  assert.equal(await validateDocument(freeEvent), undefined);
   freeEvent.price = 250;
-  assert.ok(freeEvent.validateSync()?.errors?.pricingType);
+  assert.ok((await validateDocument(freeEvent))?.errors?.pricingType);
   freeEvent.price = 0;
   freeEvent.pricingType = 'PAID';
-  assert.ok(freeEvent.validateSync()?.errors?.pricingType);
+  assert.ok((await validateDocument(freeEvent))?.errors?.pricingType);
 
   const legacyPaidEvent = Event.hydrate({
     _id: new mongoose.Types.ObjectId(),
@@ -323,7 +329,7 @@ const testMinimumMembers = async () => {
     status: 'published',
   });
   assert.equal(legacyPaidEvent.pricingType, 'PAID');
-  assert.equal(legacyPaidEvent.validateSync(), undefined);
+  assert.equal(await validateDocument(legacyPaidEvent), undefined);
 };
 
 const testCapacityCounting = async () => {
@@ -776,7 +782,7 @@ const testRegistrationPricingBehavior = async () => {
 
 const run = async () => {
   testCurrencyValidatorContexts();
-  testRegistrationRosterValidation();
+  await testRegistrationRosterValidation();
   await testMinimumMembers();
   await testEditingPastEvents();
   await testCapacityCounting();

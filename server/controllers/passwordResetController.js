@@ -83,7 +83,7 @@ const issueOtp = async (user, existingReset = null) => {
       update.$set.resendCount = 1;
     }
     reset = await PasswordReset.findOneAndUpdate(filter, update, {
-      new: true,
+      returnDocument: 'after',
     }).select('+otpHash +otpExpiresAt +otpAttempts');
     if (!reset) return false;
   } else {
@@ -116,7 +116,7 @@ const issueOtp = async (user, existingReset = null) => {
   } catch {
     await clearOtp(reset);
     console.error(
-      'Password reset email delivery failed. Check SMTP_USER, SMTP_PASS, and SMTP service configuration.'
+      'Password reset email delivery failed. Check Resend configuration and provider logs.'
     );
     return false;
   }
@@ -266,7 +266,7 @@ const verifyPasswordResetOtp = async (req, res, next) => {
         },
         $unset: { otpHash: 1, otpExpiresAt: 1 },
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!verified) {
@@ -299,7 +299,7 @@ const resetPassword = async (req, res, next) => {
         $set: { usedAt: now, expiresAt: new Date(now.getTime() + 86400000) },
         $unset: { resetTokenHash: 1, resetTokenExpiresAt: 1 },
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!resetRecord) {

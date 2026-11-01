@@ -20,6 +20,12 @@ const {
 const { getRoomDetailsForRegistration } = registrationController;
 emailService.sendEmail = originalSendEmail;
 
+const validateDocument = (document) =>
+  document.validate().then(
+    () => undefined,
+    (error) => error
+  );
+
 const invoke = async (handler, req) => {
   let status;
   let body;
@@ -48,7 +54,7 @@ const rosterFor = (size) =>
     freeFireUid: String(100000 + index),
   }));
 
-const testRosterValidation = () => {
+const testRosterValidation = async () => {
   const teamSizes = { SOLO: 1, DUO: 2, TRIO: 3, SQUAD: 4 };
   for (const [teamMode, size] of Object.entries(teamSizes)) {
     const registration = new Registration({
@@ -57,9 +63,9 @@ const testRosterValidation = () => {
       teamMode,
       players: rosterFor(size),
     });
-    assert.equal(registration.validateSync(), undefined, `${teamMode} roster should validate`);
+    assert.equal(await validateDocument(registration), undefined, `${teamMode} roster should validate`);
     registration.players.pop();
-    assert.ok(registration.validateSync()?.errors?.players, `${teamMode} must reject an incomplete roster`);
+    assert.ok((await validateDocument(registration))?.errors?.players, `${teamMode} must reject an incomplete roster`);
   }
 
   const duplicateUids = new Registration({
@@ -71,10 +77,10 @@ const testRosterValidation = () => {
       { playerName: 'Player Two', freeFireUid: '123456' },
     ],
   });
-  assert.ok(duplicateUids.validateSync()?.errors?.players);
+  assert.ok((await validateDocument(duplicateUids))?.errors?.players);
 };
 
-const testRoomValidation = () => {
+const testRoomValidation = async () => {
   const baseRoom = {
     event: new mongoose.Types.ObjectId(),
     roomId: 'room-123',
@@ -90,7 +96,7 @@ const testRoomValidation = () => {
       { registration: new mongoose.Types.ObjectId(), slotNumber: 2 },
     ],
   });
-  assert.equal(validRoom.validateSync(), undefined);
+  assert.equal(await validateDocument(validRoom), undefined);
   assert.equal(EventRoom.schema.path('roomPassword').options.select, false);
 
   const duplicateSlots = new EventRoom({
@@ -100,7 +106,7 @@ const testRoomValidation = () => {
       { registration: new mongoose.Types.ObjectId(), slotNumber: 1 },
     ],
   });
-  assert.ok(duplicateSlots.validateSync()?.errors?.assignments);
+  assert.ok((await validateDocument(duplicateSlots))?.errors?.assignments);
 };
 
 const testPaymentEligibility = () => {
@@ -610,8 +616,8 @@ const testRoomCredentialsAreOwnerScoped = async () => {
 };
 
 const run = async () => {
-  testRosterValidation();
-  testRoomValidation();
+  await testRosterValidation();
+  await testRoomValidation();
   testPaymentEligibility();
   await testRoomPublication();
   await testRoomDraftSave();

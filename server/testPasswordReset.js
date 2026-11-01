@@ -2,8 +2,8 @@ const assert = require('assert/strict');
 
 process.env.JWT_SECRET = 'test-password-reset-jwt-secret-at-least-thirty-two';
 process.env.EMAIL_OTP_SECRET = 'test-password-reset-hmac-secret';
-process.env.SMTP_USER = 'test@example.com';
-process.env.SMTP_PASS = 'test-smtp-password';
+process.env.RESEND_API_KEY = 're_test-only-key';
+process.env.EMAIL_FROM = 'EventBooking <sender@example.test>';
 process.env.NODE_ENV = 'test';
 
 const userPath = require.resolve('./models/User');

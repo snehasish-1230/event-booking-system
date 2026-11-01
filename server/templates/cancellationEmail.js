@@ -88,7 +88,7 @@ const generateCancellationEmail = ({
           <tr>
             <td style="background-color:#f9fafb;padding:24px 40px;text-align:center;border-top:1px solid #e5e7eb;">
               <p style="margin:0 0 4px;color:#9ca3af;font-size:13px;">
-                &copy; ${new Date().getFullYear()} ${escapeHtml(env.SMTP_FROM_NAME)}. All rights reserved.
+                &copy; ${new Date().getFullYear()} ${escapeHtml(env.EMAIL_FROM_NAME)}. All rights reserved.
               </p>
               <p style="margin:0;color:#9ca3af;font-size:12px;">
                 This is an automated email. Please do not reply directly.

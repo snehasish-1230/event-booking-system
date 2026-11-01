@@ -265,7 +265,7 @@ const updateEvent = async (req, res, next) => {
           ...registrationCountFilter,
         },
         fields,
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
       );
       if (!updatedEvent) {
         throw new AppError(

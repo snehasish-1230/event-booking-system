@@ -201,7 +201,7 @@ const createPayment = async (req, res, next) => {
       payment = await Payment.findOneAndUpdate(
         { _id: existingPaymentForBooking._id, status: 'REJECTED' },
         { $set: paymentData },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
       );
       if (!payment) {
         throw new AppError('Payment status changed while submitting; reload and try again', 409);
@@ -511,7 +511,7 @@ const reviewPayment = async (req, res, next) => {
           rejectionReason: action === 'REJECT' ? rejectionReason.trim() : '',
         },
       },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!reviewedPayment) {
       throw new AppError('Payment has already been reviewed', 409);
@@ -530,7 +530,7 @@ const reviewPayment = async (req, res, next) => {
           paymentStatus: newPaymentStatus,
         },
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('event', 'title slug date time location');
 
     if (!registration) {
@@ -693,7 +693,7 @@ const reviewTestPayment = async (req, res, next) => {
           rejectionReason: action === 'REJECT' ? rejectionReason.trim() : '',
         },
       },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
       .populate('user', 'name email')
       .populate('reviewedBy', 'name email')

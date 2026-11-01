@@ -1,24 +1,5 @@
-// const mongoose = require('mongoose');
-// const { MONGO_URI } = require('./env');
-
-// const connectDB = async () => {
-//   try {
-//     const conn = await mongoose.connect(MONGO_URI);
-//     console.log(`MongoDB connected: ${conn.connection.host}`);
-//   } catch (error) {
-//     console.error(`MongoDB connection error: ${error.message}`);
-//     process.exit(1);
-//   }
-// };
-
-// module.exports = connectDB;
-
-
-
-// new ---
-
 const mongoose = require("mongoose");
-const { MONGO_URI } = require("./env");
+const { MONGODB_URI } = require("./env");
 
 let cached = global.mongoose;
 
@@ -36,7 +17,7 @@ const connectDB = async () => {
 
   if (!cached.promise) {
     cached.promise = mongoose
-      .connect(MONGO_URI, {
+      .connect(MONGODB_URI, {
         serverSelectionTimeoutMS: 10000,
         connectTimeoutMS: 10000,
         socketTimeoutMS: 45000,
