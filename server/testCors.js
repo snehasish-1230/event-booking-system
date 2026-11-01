@@ -4,6 +4,7 @@ const configureCors = require("./config/cors");
 const authRoutes = require("./routes/authRoutes");
 
 const frontendOrigins = [
+  "https://event-booking-system-72d4425dq-ff-team8.vercel.app",
   "https://event-booking-system-3jw3p0uq2-ff-team8.vercel.app",
   "https://event-booking-system-xi-two.vercel.app",
 ];
