@@ -1,162 +1,140 @@
-const nodemailer = require('nodemailer');
 const env = require('../config/env');
 
-const EMAIL_CONNECTION_TIMEOUT_MS = 10000;
-const EMAIL_GREETING_TIMEOUT_MS = 10000;
-const EMAIL_SOCKET_TIMEOUT_MS = 15000;
-let transporter;
+const RESEND_API_URL = 'https://api.resend.com/emails';
+const EMAIL_REQUEST_TIMEOUT_MS = 10000;
 
-const hasEmailConfiguration = () =>
-  Boolean(env.EMAIL_USER && env.EMAIL_PASS && env.EMAIL_FROM);
-
-const createTransporter = () => {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: env.EMAIL_HOST,
-      port: env.EMAIL_PORT,
-      secure: env.EMAIL_SECURE,
-      requireTLS: !env.EMAIL_SECURE,
-      connectionTimeout: EMAIL_CONNECTION_TIMEOUT_MS,
-      greetingTimeout: EMAIL_GREETING_TIMEOUT_MS,
-      socketTimeout: EMAIL_SOCKET_TIMEOUT_MS,
-      auth: {
-        user: env.EMAIL_USER,
-        pass: env.EMAIL_PASS,
-      },
-    });
-  }
-  return transporter;
-};
-
-const getAddress = (value) => {
-  const address = typeof value === 'string' ? value : value?.address;
-  if (typeof address !== 'string') return '';
-  return address.match(/<([^<>]+)>/)?.[1]?.trim().toLowerCase()
-    || address.trim().toLowerCase();
-};
-
-const maskRecipient = (recipient) => {
-  const value = Array.isArray(recipient) ? recipient[0] : recipient;
-  const address = getAddress(value);
-  const [localPart, domain] = address.split('@');
-  if (!localPart || !domain) return 'unavailable';
-  return `${localPart.slice(0, 1)}***@${domain}`;
-};
-
-const logTransactionalAttempt = ({ to, info, error, recipientAccepted }) => {
-  const diagnostics = {
-    recipient: maskRecipient(to),
-    submissionStatus: recipientAccepted ? 'accepted' : 'failed_or_rejected',
-    recipientAccepted,
-    messageId: recipientAccepted ? info?.messageId : undefined,
-    acceptedCount: Array.isArray(info?.accepted) ? info.accepted.length : 0,
-    rejectedCount: Array.isArray(info?.rejected) ? info.rejected.length : 0,
-    responseCode: info?.responseCode || error?.responseCode || undefined,
-    smtpCode: error?.code || undefined,
-    errorName: error?.name || undefined,
-  };
-  (recipientAccepted ? console.info : console.error)(
-    'Transactional email SMTP submission result:',
-    diagnostics
-  );
-};
-
-const logSmtpFailure = (event, error) => {
-  console.error(event, {
-    name: error?.name,
-    code: error?.code,
-    responseCode: error?.responseCode,
-  });
-};
-
-const createSafeDeliveryError = (code = 'EMAIL_DELIVERY_FAILED') => {
-  const error = new Error('Email provider did not accept the recipient');
+const createEmailError = (code, message) => {
+  const error = new Error(message);
   error.code = code;
   return error;
 };
 
+const hasEmailConfiguration = () =>
+  Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
+
+const logEmailFailure = (error, status) => {
+  console.error('Resend email submission failed:', {
+    code: error.code || 'EMAIL_DELIVERY_FAILED',
+    status,
+    errorName: error.name,
+  });
+};
+
 const sendEmailMessage = async ({ to, subject, html }) => {
   if (!hasEmailConfiguration()) {
-    const error = new Error(
-      'EMAIL_USER, EMAIL_PASS, and EMAIL_FROM must be configured for email delivery'
+    const error = createEmailError(
+      'EMAIL_NOT_CONFIGURED',
+      'RESEND_API_KEY and EMAIL_FROM must be configured for email delivery'
     );
-    error.code = 'EMAIL_NOT_CONFIGURED';
+    logEmailFailure(error);
     throw error;
   }
 
-  const from = env.EMAIL_FROM.includes('<')
-    ? env.EMAIL_FROM
-    : { name: env.EMAIL_FROM_NAME, address: env.EMAIL_FROM };
-  let info;
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    EMAIL_REQUEST_TIMEOUT_MS
+  );
+  let response;
+
   try {
-    info = await createTransporter().sendMail({ from, to, subject, html });
-  } catch (error) {
-    logTransactionalAttempt({ to, error, recipientAccepted: false });
-    throw createSafeDeliveryError(
-      error?.code === 'EAUTH' ? 'EMAIL_AUTH_FAILED' : 'EMAIL_DELIVERY_FAILED'
+    response = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM,
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html,
+      }),
+      signal: controller.signal,
+    });
+  } catch (cause) {
+    const error = createEmailError(
+      cause.name === 'AbortError'
+        ? 'EMAIL_REQUEST_TIMEOUT'
+        : 'EMAIL_NETWORK_ERROR',
+      cause.name === 'AbortError'
+        ? 'Email provider request timed out'
+        : 'Unable to reach the email provider'
     );
+    logEmailFailure(error);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 
-  const recipient = getAddress(to);
-  const acceptedRecipients = new Set((info.accepted || []).map(getAddress));
-  const rejectedRecipients = new Set((info.rejected || []).map(getAddress));
-  const recipientAccepted =
-    acceptedRecipients.has(recipient) && !rejectedRecipients.has(recipient);
-  logTransactionalAttempt({ to, info, recipientAccepted });
-
-  if (!recipientAccepted) {
-    throw createSafeDeliveryError('EMAIL_RECIPIENT_REJECTED');
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    result = null;
   }
+
+  if (!response.ok) {
+    const error = createEmailError(
+      response.status === 401 || response.status === 403
+        ? 'EMAIL_PROVIDER_AUTH_FAILED'
+        : response.status === 422
+          ? 'EMAIL_REQUEST_REJECTED'
+          : response.status === 429
+            ? 'EMAIL_RATE_LIMITED'
+            : 'EMAIL_DELIVERY_FAILED',
+      'Email provider did not accept the message'
+    );
+    logEmailFailure(error, response.status);
+    throw error;
+  }
+
+  if (typeof result?.id !== 'string' || !result.id) {
+    const error = createEmailError(
+      'EMAIL_INVALID_PROVIDER_RESPONSE',
+      'Email provider returned an invalid submission response'
+    );
+    logEmailFailure(error, response.status);
+    throw error;
+  }
+
+  console.info('Resend accepted email submission:', {
+    messageId: result.id,
+  });
 
   return {
     submitted: true,
-    messageId: info.messageId,
+    messageId: result.id,
   };
 };
 
 const sendEmail = async (options) => {
   try {
-    await sendEmailMessage(options);
-    return { success: true };
+    const submission = await sendEmailMessage(options);
+    return { success: true, ...submission };
   } catch {
-    return { success: false };
+    return { success: false, submitted: false };
   }
 };
 
 const verifyConnection = async () => {
   if (!hasEmailConfiguration()) {
-    const error = new Error(
-      'EMAIL_USER, EMAIL_PASS, and EMAIL_FROM must be configured before production startup'
+    const error = createEmailError(
+      'EMAIL_NOT_CONFIGURED',
+      'RESEND_API_KEY and EMAIL_FROM must be configured'
     );
-    error.code = 'EMAIL_NOT_CONFIGURED';
     if (env.NODE_ENV === 'production') throw error;
-    console.warn('Gmail SMTP configuration is incomplete — email sending is disabled');
+    console.warn('Resend email configuration is incomplete');
     return false;
   }
 
-  try {
-    await createTransporter().verify();
-    console.info('Gmail SMTP connection verified — email service is ready');
-    return true;
-  } catch (error) {
-    logSmtpFailure('Gmail SMTP connection verification failed:', error);
-    if (env.NODE_ENV === 'production') {
-      const verificationError = new Error(
-        'Gmail SMTP connection verification failed; check email configuration and Gmail App Password'
-      );
-      verificationError.code = 'SMTP_VERIFICATION_FAILED';
-      throw verificationError;
-    }
-    return false;
-  }
+  console.info('Resend email configuration is ready');
+  return true;
 };
-
-const sendVerificationEmail = (options) => sendEmailMessage(options);
-const sendPasswordResetEmail = (options) => sendEmailMessage(options);
 
 module.exports = {
   sendEmail,
-  sendVerificationEmail,
-  sendPasswordResetEmail,
+  sendVerificationEmail: sendEmailMessage,
+  sendPasswordResetEmail: sendEmailMessage,
   verifyConnection,
 };

@@ -77,8 +77,38 @@ const run = async () => {
     assert.equal(blockedPreflight.status, 403);
     assert.equal(blockedPreflight.headers.get("access-control-allow-origin"), null);
 
+    const developmentApp = express();
+    configureCors(developmentApp, {
+      nodeEnv: "development",
+      clientUrl: "",
+    });
+    const developmentServer = developmentApp.listen(0, "127.0.0.1");
+    await new Promise((resolve) => developmentServer.once("listening", resolve));
+    const developmentAddress = developmentServer.address();
+    const developmentBaseUrl = `http://127.0.0.1:${developmentAddress.port}`;
+
+    try {
+      for (const origin of ["http://localhost:5173", "http://localhost:5175"]) {
+        const preflight = await fetch(`${developmentBaseUrl}/api/auth/login`, {
+          method: "OPTIONS",
+          headers: {
+            Origin: origin,
+            "Access-Control-Request-Method": "POST",
+          },
+        });
+        assert.equal(preflight.status, 204);
+        assert.equal(preflight.headers.get("access-control-allow-origin"), origin);
+      }
+    } finally {
+      await new Promise((resolve, reject) =>
+        developmentServer.close((error) =>
+          error ? reject(error) : resolve(),
+        ),
+      );
+    }
+
     console.log(
-      "CORS tests passed: the configured production origin can preflight and reach registration/login validation; untrusted origin is blocked.",
+      "CORS tests passed: production and localhost origins can preflight; untrusted production origin is blocked.",
     );
   } finally {
     await new Promise((resolve, reject) =>

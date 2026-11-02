@@ -108,14 +108,14 @@ const deliverRoomEmail = async (registration, event, room, assignment, { force =
         instructions: room.instructions,
       }),
     });
-    success = Boolean(result?.success);
+    success = result?.success === true && result?.submitted === true;
   } catch {
     success = false;
   }
 
   const status = success ? 'sent' : 'failed';
   const sentAt = success ? new Date() : undefined;
-  const error = success ? undefined : 'Email delivery failed. Check email service configuration.';
+  const error = success ? undefined : 'Email submission failed. Check email service configuration.';
   const deliveryUpdate = await EventRoom.updateOne(
     {
       _id: room._id,
@@ -137,7 +137,7 @@ const deliverRoomEmail = async (registration, event, room, assignment, { force =
     }
   );
   if (!deliveryUpdate.matchedCount) {
-    throw new AppError('Email delivery completed but its status could not be recorded. Check the email before retrying.', 409);
+    throw new AppError('Email submission completed but its status could not be recorded. Check the email before retrying.', 409);
   }
   assignment.emailStatus = status;
   assignment.emailSentAt = sentAt;
@@ -316,6 +316,7 @@ const publishEventRoom = async (req, res, next) => {
         room,
         eligibleCount: eligibleRegistrations.length,
         emailsSent,
+        emailsSubmitted: emailsSent,
         emailsFailed,
         emailsSkipped,
         skippedRegistrations: registrations.length - eligibleRegistrations.length,
@@ -373,7 +374,12 @@ const resendRoomEmails = async (req, res, next, failedOnly = false) => {
     }
     res.status(200).json({
       success: true,
-      data: { emailsSent, emailsFailed, emailsSkipped },
+      data: {
+        emailsSent,
+        emailsSubmitted: emailsSent,
+        emailsFailed,
+        emailsSkipped,
+      },
     });
   } catch (err) {
     forwardRoomError(err, next);

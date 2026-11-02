@@ -1,13 +1,14 @@
 const env = require('../config/env');
 
 const isProduction = env.NODE_ENV === 'production';
+const isDevelopment = env.NODE_ENV === 'development';
 
 /**
  * Global error handler middleware.
  * Handles Mongoose, JWT, Multer, and operational errors with clean responses.
  */
 const errorHandler = (err, req, res, next) => {
-  if (!isProduction) {
+  if (isDevelopment) {
     console.error('Error:', err);
   }
 
@@ -61,7 +62,7 @@ const errorHandler = (err, req, res, next) => {
     res.setHeader('Retry-After', String(Math.ceil(err.retryAfterSeconds)));
   }
 
-  if (isProduction && statusCode >= 500) {
+  if (statusCode >= 500 && !isDevelopment) {
     console.error('Unhandled API error:', {
       name: err.name,
       code: err.code,
@@ -72,12 +73,14 @@ const errorHandler = (err, req, res, next) => {
 
   res.status(statusCode).json({
     success: false,
-    message: isProduction && statusCode === 500 ? 'Internal server error' : message,
+    message:
+      statusCode >= 500 && !err.isOperational
+        ? 'Internal server error'
+        : message,
     ...(errors && { errors }),
     ...(Number.isFinite(err.retryAfterSeconds) && err.retryAfterSeconds > 0 && {
       retryAfterSeconds: Math.ceil(err.retryAfterSeconds),
     }),
-    ...(isProduction ? {} : { stack: err.stack }),
   });
 };
 

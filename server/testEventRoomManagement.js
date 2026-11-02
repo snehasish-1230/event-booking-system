@@ -11,7 +11,10 @@ let sentEmails = [];
 let failEmailDelivery = false;
 emailService.sendEmail = async (message) => {
   sentEmails.push(message);
-  return { success: !failEmailDelivery };
+  return {
+    success: !failEmailDelivery,
+    submitted: !failEmailDelivery,
+  };
 };
 const {
   publishEventRoom,
@@ -292,6 +295,7 @@ const testRoomPublication = async () => {
     assert.equal(result.body.data.eligibleCount, 1);
     assert.equal(result.body.data.skippedRegistrations, 2);
     assert.equal(result.body.data.emailsSent, 1);
+    assert.equal(result.body.data.emailsSubmitted, 1);
     assert.equal(result.body.data.emailsFailed, 0);
     assert.equal(roomSaveCount, 1);
     assert.equal(savedRoom.assignments.length, 1);
@@ -305,6 +309,7 @@ const testRoomPublication = async () => {
 
     const repeatedPublish = await invoke(publishEventRoom, req);
     assert.equal(repeatedPublish.body.data.emailsSent, 0);
+    assert.equal(repeatedPublish.body.data.emailsSubmitted, 0);
     assert.equal(repeatedPublish.body.data.emailsSkipped, 1);
     assert.equal(sentEmails.length, 1, 'Publishing unchanged room details must not resend successful emails');
 
@@ -318,6 +323,7 @@ const testRoomPublication = async () => {
     failEmailDelivery = false;
     const retriedDelivery = await invoke(publishEventRoom, req);
     assert.equal(retriedDelivery.body.data.emailsSent, 1);
+    assert.equal(retriedDelivery.body.data.emailsSubmitted, 1);
     assert.equal(savedRoom.assignments[0].emailStatus, 'sent');
     assert.equal(savedRoom.assignments[0].emailAttempts, 2);
 
@@ -472,6 +478,7 @@ const testFailedRoomEmailRetry = async () => {
     });
     assert.equal(result.status, 200);
     assert.equal(result.body.data.emailsSent, 1);
+    assert.equal(result.body.data.emailsSubmitted, 1);
     assert.equal(room.assignments[0].emailStatus, 'sent');
     assert.equal(room.assignments[0].emailAttempts, 1);
   } finally {

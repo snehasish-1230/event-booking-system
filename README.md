@@ -40,7 +40,7 @@
 - **JWT Authentication** — Secure token-based auth with bcrypt hashing, login attempt limiting, and account locking
 - **Full Event Lifecycle** — Draft → Published → Cancelled/Completed status workflow with slug-based SEO-friendly URLs
 - **Atomic Capacity Management** — Race-condition-safe registration using MongoDB `findOneAndUpdate` + `$expr` to prevent overbooking
-- **Email Notifications** — Automated confirmation and cancellation emails via Gmail SMTP with HTML templates
+- **Email Notifications** — Automated transactional email via Resend with existing HTML templates
 - **QR Code Tickets** — Unique UUID-based confirmation codes with printable ticket view and QR code generation
 - **Organizer Dashboard** — Event statistics, attendee management, check-in system, revenue tracking, and upcoming events overview
 - **Admin Panel** — System-wide dashboard with user management, event moderation, and registration oversight
@@ -139,12 +139,12 @@ flowchart LR
   Browser["React 19 SPA<br/>(Vite + Tailwind 4)"]
   API["Express 5 API<br/>(REST + JWT)"]
   DB[("MongoDB Atlas<br/>Mongoose 9")]
-  SMTP[("Gmail SMTP<br/>Nodemailer")]
+  Resend[("Resend Email API<br/>HTTPS")]
 
   Browser -- "Axios + JWT (Bearer)" --> API
   API -- "atomic findOneAndUpdate + $expr" --> DB
-  API -. "confirmation email" .-> SMTP
-  SMTP -. "ticket + QR code" .-> Browser
+  API -. "confirmation email" .-> Resend
+  Resend -. "ticket + QR code" .-> Browser
 ```
 
 ---
@@ -168,7 +168,7 @@ flowchart LR
 - **Express 5**: Minimal and flexible web application framework
 - **MongoDB (Mongoose 9)**: NoSQL database with elegant object modeling and compound indexes
 - **JWT (jsonwebtoken + bcryptjs)**: Stateless authentication with secure password hashing
-- **Nodemailer**: Email sending via Gmail SMTP with HTML templates
+- **Resend**: Transactional email submission over HTTPS with HTML templates
 - **Multer**: Multipart form data handling for file uploads
 - **Helmet**: Secure HTTP response headers with CSP
 - **express-rate-limit**: Multi-tier request rate limiting
@@ -210,21 +210,17 @@ MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret_min_32_chars
 JWT_EXPIRE=7d
 CLIENT_URL=http://localhost:5175,http://localhost:5173
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_SECURE=false
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-16-character-google-app-password
-EMAIL_FROM=your-email@gmail.com
+RESEND_API_KEY=re_your_resend_api_key
+EMAIL_FROM=EventBooking <noreply@your-verified-domain.com>
 EMAIL_FROM_NAME=EventBooking
-EMAIL_OTP_SECRET=optional_dedicated_secret_defaults_to_JWT_SECRET
+EMAIL_OTP_SECRET=your_dedicated_secret_min_32_chars
 UPLOAD_MAX_SIZE=5242880
 ADMIN_SEED_EMAIL=admin@example.com
 ADMIN_SEED_PASSWORD=your_admin_password
 ADMIN_SEED_NAME=Admin
 ```
 
-> Email verification and password reset require Gmail SMTP credentials. `EMAIL_*` settings are preferred; existing `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM_NAME` settings remain supported. Use a Google App Password, never your normal Gmail password. `MONGO_URI` remains accepted as a legacy alias for `MONGODB_URI`. OTPs are hashed in storage, expire after five minutes, and are not written to logs or public API responses.
+> Email verification, password reset, and transactional notifications use Resend. Configure a Resend API key and a sender address verified by Resend; the API key remains server-side only. In production, `EMAIL_OTP_SECRET` is required and must be at least 32 characters. `MONGO_URI` remains accepted as a legacy alias for `MONGODB_URI`. OTPs are hashed in storage, expire after five minutes, and are not written to logs or public API responses. A successful response means Resend accepted the submission, not that the recipient inbox received it.
 
 **client/.env** (optional — local development and production API URLs are configured separately)
 
@@ -302,7 +298,7 @@ cd client && npm run dev
 1. User clicks "Register" on an event detail page
 2. The server performs an atomic `findOneAndUpdate` with `$expr` to check capacity and increment `registeredCount` in a single operation — preventing race conditions
 3. A `Registration` document is created with a unique UUID-based confirmation code
-4. A confirmation email is sent via Gmail SMTP with an HTML template
+4. A confirmation email is submitted through Resend using the existing HTML template
 5. The user can view their ticket with a QR code at `/tickets/:id`
 
 ---
@@ -532,7 +528,7 @@ event-booking-system/
 
 4. Add all required environment variables from the table below, including `NODE_ENV=production`.
 5. Set `CLIENT_URL=https://event-booking-system-bc862y17v-ff-team8.vercel.app` (exact origin, no path). Update it if the production frontend origin changes.
-6. Configure Gmail SMTP with an App Password using `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_SECURE`, `EMAIL_USER`, `EMAIL_PASS`, and `EMAIL_FROM`. The server verifies the SMTP connection during startup.
+6. Configure `RESEND_API_KEY`, `EMAIL_FROM`, and `EMAIL_OTP_SECRET`. The server validates configuration at startup without making an SMTP connection or test email request.
 
 ### Frontend (Vercel or Netlify)
 
@@ -563,16 +559,11 @@ event-booking-system/
 | `MONGODB_URI` | MongoDB connection string (`MONGO_URI` is accepted as a legacy alias) | — |
 | `JWT_SECRET` | JWT signing secret (min 32 chars in production) | — |
 | `JWT_EXPIRE` | JWT token expiration | `7d` |
-| `CLIENT_URL` | Comma-separated exact frontend origins for CORS | Production: current Vercel origin; local: `http://localhost:5175,http://localhost:5173` |
-| `EMAIL_HOST` | Gmail SMTP host | `smtp.gmail.com` |
-| `EMAIL_PORT` | SMTP port | `587` (STARTTLS) or `465` (TLS) |
-| `EMAIL_SECURE` | Use implicit TLS (must be `false` on 587, `true` on 465) | `false` |
-| `EMAIL_USER` | Gmail account address | — |
-| `EMAIL_PASS` | Google App Password (secret) | — |
-| `EMAIL_FROM` | Sender address; must be accepted by the Gmail account | defaults to `EMAIL_USER` |
-| `EMAIL_FROM_NAME` | Sender display name | `EventBooking` |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM_NAME` | Legacy email variable aliases supported for existing deployments | — |
-| `EMAIL_OTP_SECRET` | HMAC secret for OTP/reset credentials; defaults to `JWT_SECRET` | — |
+| `CLIENT_URL` | Comma-separated exact HTTPS frontend origins for CORS; required in production | Production: current Vercel origin; local: `http://localhost:5175,http://localhost:5173` |
+| `RESEND_API_KEY` | Server-side Resend API key; required in production | — |
+| `EMAIL_FROM` | Sender address verified with Resend; required in production | — |
+| `EMAIL_FROM_NAME` | Brand name used in email templates | `EventBooking` |
+| `EMAIL_OTP_SECRET` | Dedicated HMAC secret for OTP/reset credentials; required in production, minimum 32 characters | Development falls back to `JWT_SECRET` |
 | `UPLOAD_MAX_SIZE` | Max upload size in bytes | `5242880` (5MB) |
 | `UPI_ID` | Merchant UPI address for payment QR generation | `merchant@upi` |
 | `PAYMENT_QR_URL` | Optional hosted payment QR image URL | — |
@@ -593,14 +584,14 @@ NODE_ENV=development npm run unlock-admin -- admin@example.com
 
 The command requires the exact admin email and refuses to run unless `NODE_ENV=development`. It changes only that verified admin's `loginAttempts` and `lockUntil`; it does not change the password or other users. Do not use it as a way to bypass shared-IP HTTP 429 limits.
 
-### Email Setup (Gmail SMTP)
+### Email Setup (Resend)
 
-1. Enable 2-Step Verification for the Gmail account.
-2. Create a Google App Password from the Google Account security settings. Use the 16-character App Password, not the normal account password.
-3. Configure the `EMAIL_*` values in Render (and optionally locally). For port 587 use `EMAIL_SECURE=false`; for port 465 use `EMAIL_SECURE=true`.
-4. The backend verifies SMTP configuration/connectivity at startup. Startup fails in production if SMTP credentials are absent or verification fails.
-5. Registration reports success only after Nodemailer reports that Gmail accepted the recipient. Rejected recipients, authentication failures, and network errors do not count as success, and pending OTP data is cleared when sending fails.
-6. Gmail SMTP acceptance is not proof of inbox delivery; check the authorized test mailbox's Inbox and Spam folders.
+1. Create a Resend account and verify the domain used for the sender address.
+2. Create a Resend API key and store it as `RESEND_API_KEY` in Render; never add it to Vite variables or frontend code.
+3. Set `EMAIL_FROM` to a sender address authorized for that verified domain and `EMAIL_OTP_SECRET` to a separate random secret of at least 32 characters.
+4. Startup checks that required email settings exist but does not make an SMTP connection or send a test message.
+5. Registration and password reset proceed only when Resend accepts the email submission; failures clear the pending OTP state.
+6. Resend acceptance is not proof of inbox delivery. Use Resend's delivery events/logs and an authorized recipient mailbox to confirm actual delivery.
 
 ---
 

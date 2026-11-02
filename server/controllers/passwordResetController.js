@@ -113,10 +113,11 @@ const issueOtp = async (user, existingReset = null) => {
       html: generatePasswordResetEmail({ userName: user.name, otp }),
     });
     return true;
-  } catch {
+  } catch (error) {
     await clearOtp(reset);
     console.error(
-      'Password reset email delivery failed. Check Gmail SMTP configuration and server diagnostics.'
+      'Password reset email delivery failed. Check Resend configuration and service logs.',
+      { code: error.code || 'EMAIL_DELIVERY_FAILED' }
     );
     return false;
   }

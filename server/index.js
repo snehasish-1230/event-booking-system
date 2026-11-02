@@ -356,6 +356,23 @@ app.use(errorHandler);
 
 // Start local server during development
 if (require.main === module) {
+  const sanitizeStartupMessage = (error) => {
+    let message = error?.message || 'Unknown startup error';
+    for (const secret of [
+      env.MONGODB_URI,
+      env.JWT_SECRET,
+      env.EMAIL_OTP_SECRET,
+      env.RESEND_API_KEY,
+    ]) {
+      if (secret) message = message.split(secret).join('[redacted]');
+    }
+
+    return message
+      .replace(/mongodb(?:\+srv)?:\/\/\S+/gi, '[redacted MongoDB URI]')
+      .replace(/\bBearer\s+\S+/gi, 'Bearer [redacted]')
+      .replace(/\bre_[A-Za-z0-9_-]+\b/g, '[redacted Resend API key]');
+  };
+
   connectDB()
     .then(async () => {
       await verifyConnection();
@@ -370,6 +387,8 @@ if (require.main === module) {
       console.error("Server startup failed:", {
         name: error.name,
         code: error.code,
+        message: sanitizeStartupMessage(error),
+        ...(env.NODE_ENV !== "production" && { stack: error.stack }),
       });
       process.exit(1);
     });

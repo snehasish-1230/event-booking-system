@@ -236,7 +236,7 @@ const AdminEventRoomPage = () => {
       const data = response.data || response;
       setRoom(data.room);
       toast.success(
-        `Published to ${data.eligibleCount} eligible teams. ${data.emailsSent} emails sent, ${data.emailsFailed} failed, ${data.emailsSkipped} duplicate sends skipped, ${data.skippedRegistrations} registrations ineligible.`
+        `Published to ${data.eligibleCount} eligible teams. Resend accepted ${data.emailsSubmitted ?? data.emailsSent} email submissions; ${data.emailsFailed} failed, ${data.emailsSkipped} duplicate submissions skipped, ${data.skippedRegistrations} registrations ineligible.`
       );
       await loadRoom();
     } catch (error) {
@@ -252,7 +252,7 @@ const AdminEventRoomPage = () => {
     try {
       const response = await adminService.resendFailedRoomEmails(eventId);
       const data = response.data || response;
-      toast.success(`${data.emailsSent} resent, ${data.emailsFailed} still failed, ${data.emailsSkipped} skipped.`);
+      toast.success(`Resend accepted ${data.emailsSubmitted ?? data.emailsSent} submissions; ${data.emailsFailed} still failed, ${data.emailsSkipped} skipped.`);
       await loadRoom();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to resend room emails.');
@@ -269,7 +269,7 @@ const AdminEventRoomPage = () => {
     try {
       const response = await adminService.resendRoomEmails(eventId);
       const data = response.data || response;
-      toast.success(`${data.emailsSent} emails sent, ${data.emailsFailed} failed, ${data.emailsSkipped} skipped.`);
+      toast.success(`Resend accepted ${data.emailsSubmitted ?? data.emailsSent} email submissions; ${data.emailsFailed} failed, ${data.emailsSkipped} skipped.`);
       await loadRoom();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to resend room emails.');
@@ -436,6 +436,9 @@ const AdminEventRoomPage = () => {
 
         <div className="space-y-3">
           <h3 className="font-semibold text-gray-900 dark:text-white">Event registrations and slots</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            “Submitted” means Resend accepted the message; it does not confirm inbox delivery.
+          </p>
           <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
             <input
               value={search}
@@ -461,6 +464,12 @@ const AdminEventRoomPage = () => {
             </p>
           ) : visibleRegistrations.map((registration) => {
             const eligible = isEligible(registration, event);
+            const emailStatus = room?.assignments?.find((assignment) =>
+              String(assignment.registration?._id || assignment.registration) === registration._id
+            )?.emailStatus;
+            const emailStatusLabel =
+              emailStatus === 'sent' ? 'submitted' : emailStatus || 'not submitted';
+
             return (
               <article key={registration._id} className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -486,9 +495,7 @@ const AdminEventRoomPage = () => {
                     </ul>
                     {eligible && room?.status === 'published' && (
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        Email: {room.assignments?.find((assignment) =>
-                          String(assignment.registration?._id || assignment.registration) === registration._id
-                        )?.emailStatus || 'not sent'}
+                        Email submission: {emailStatusLabel}
                       </p>
                     )}
                   </div>

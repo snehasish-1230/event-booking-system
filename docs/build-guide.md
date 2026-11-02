@@ -8,7 +8,7 @@
 
 Each step below is a self-contained prompt. Execute them in order.
 
-Stack: React 19, Vite, Tailwind CSS 4, React Router 7, Axios, Node.js, Express 5, MongoDB (Mongoose 9), JWT, Nodemailer (Gmail SMTP), Multer, Swagger.
+Stack: React 19, Vite, Tailwind CSS 4, React Router 7, Axios, Node.js, Express 5, MongoDB (Mongoose 9), JWT, Resend, Multer, Swagger.
 
 ---
 
@@ -84,21 +84,21 @@ flowchart LR
   Browser["React 19 SPA<br/>(Vite + Tailwind 4)"]
   API["Express 5 API<br/>(REST + JWT)"]
   DB[("MongoDB Atlas<br/>Mongoose 9")]
-  SMTP[("Gmail SMTP<br/>Nodemailer")]
+  Resend[("Resend Email API<br/>HTTPS")]
   FS[("Local uploads<br/>Multer")]
 
   Browser -- "Axios + JWT (Bearer)" --> API
   API -- "atomic findOneAndUpdate + $expr" --> DB
   API -- "image write/read" --> FS
-  API -. "confirmation / cancellation email" .-> SMTP
-  SMTP -. "ticket + QR code link" .-> Browser
+  API -. "confirmation / cancellation email" .-> Resend
+  Resend -. "ticket + QR code link" .-> Browser
 ```
 
 - **Client**: React 19 SPA served by Netlify, talking to the API via Axios with a JWT bearer token attached by an interceptor.
 - **Server**: Express 5 REST API on Render, layered as routes → validators → controllers → models, fronted by a security middleware stack.
 - **Database**: MongoDB Atlas via Mongoose 9 with compound indexes and atomic capacity updates.
 - **Storage**: Event images uploaded with Multer to a local `uploads/` directory served as static files.
-- **Third-party**: Gmail SMTP through Nodemailer for transactional email; Swagger UI for live API docs.
+- **Third-party**: Resend HTTPS API for transactional email; Swagger UI for live API docs.
 
 ---
 
@@ -146,7 +146,7 @@ event-booking-system/
 **Implementation notes:**
 
 - Export a single `env` object reading `process.env` with defaults (`PORT=5002`, `NODE_ENV=development`, local `MONGODB_URI`, `JWT_EXPIRE=7d`, `CLIENT_URL`, `UPLOAD_MAX_SIZE=5242880`).
-- In production, throw at boot if `MONGODB_URI` (or its legacy alias `MONGO_URI`), `JWT_SECRET` (minimum 32 chars), or Gmail SMTP credentials are missing or incorrectly configured.
+- In production, throw at boot if `MONGODB_URI` (or its legacy alias `MONGO_URI`), `JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CLIENT_URL`, or `EMAIL_OTP_SECRET` is missing or invalid.
 - Keep all secrets out of source; `.env.example` documents every variable with placeholder values only.
 
 **Acceptance:** Requiring `config/env` in development never throws; production fails fast on missing critical vars.
@@ -295,11 +295,11 @@ event-booking-system/
 
 **Implementation notes:**
 
-- Nodemailer Gmail SMTP transport from `EMAIL_*` env (with `SMTP_*` legacy aliases); `sendEmail({to,subject,html})` catches and logs safe errors, never throws.
-- `verifyConnection()` verifies the SMTP connection at startup; missing settings warn in development and fail startup in production.
+- Resend HTTPS email submission using `RESEND_API_KEY` and `EMAIL_FROM`; `sendEmail({to,subject,html})` reports submission results without exposing provider response details.
+- `verifyConnection()` validates configuration only; it performs no SMTP connection or test email request.
 - Templates are functions returning HTML; escape all user-provided values with `escapeHtml`.
 
-**Acceptance:** Registration/cancellation send email when configured; missing SMTP configuration logs a warning in development and fails email-dependent flows safely.
+**Acceptance:** Registration/cancellation submit email when configured; missing Resend configuration warns in development and fails email-dependent flows safely.
 
 ---
 
