@@ -161,9 +161,9 @@ require.cache[emailServicePath] = {
   filename: emailServicePath,
   loaded: true,
   exports: {
-    sendPasswordResetEmail: async ({ html }) => {
-      if (failEmail) throw new Error('Simulated SMTP failure');
-      sentEmails.push(html);
+    sendPasswordResetEmail: async (message) => {
+      if (failEmail) throw new Error('Simulated Resend failure');
+      sentEmails.push(message);
     },
     sendVerificationEmail: async () => {},
     sendEmail: async () => ({ success: true }),
@@ -259,7 +259,9 @@ const run = async () => {
   assert.equal(requested.body.data.resetToken, undefined);
   assert.equal(sentEmails.length, 1);
   assert.deepEqual(unknown.body, requested.body);
-  const originalOtp = extractOtp(sentEmails[0]);
+  assert.equal(sentEmails[0].to, 'reset-test@example.com');
+  assert.match(sentEmails[0].subject, /password reset code/i);
+  const originalOtp = extractOtp(sentEmails[0].html);
   const user = users.get('reset-test@example.com');
   const reset = resetRequests.get(user._id);
   assert.match(originalOtp, /^\d{6}$/);
@@ -295,7 +297,8 @@ const run = async () => {
   ]);
   assert.ok(resendResults.every((result) => result.status === 200));
   assert.equal(sentEmails.length, 2);
-  const replacementOtp = extractOtp(sentEmails[1]);
+  assert.equal(sentEmails[1].to, user.email);
+  const replacementOtp = extractOtp(sentEmails[1].html);
   assert.notEqual(replacementOtp, originalOtp);
   assert.equal(
     (await invoke(resetController.verifyPasswordResetOtp, {
@@ -383,7 +386,7 @@ const run = async () => {
     email: 'expired-reset@example.com',
   });
   const expiredUser = users.get('expired-reset@example.com');
-  const expiredOtp = extractOtp(sentEmails[2]);
+  const expiredOtp = extractOtp(sentEmails[2].html);
   const expiredRecord = resetRequests.get(expiredUser._id);
   expiredRecord.otpExpiresAt = new Date(Date.now() - 1000);
   assert.equal(
@@ -409,7 +412,7 @@ const run = async () => {
     email: 'expired-token@example.com',
   });
   const expiredTokenUser = users.get('expired-token@example.com');
-  const expiredTokenOtp = extractOtp(sentEmails[3]);
+  const expiredTokenOtp = extractOtp(sentEmails[3].html);
   const expiredTokenRecord = resetRequests.get(expiredTokenUser._id);
   const expiredTokenVerification = await invoke(
     resetController.verifyPasswordResetOtp,

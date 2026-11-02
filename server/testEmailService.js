@@ -85,6 +85,26 @@ const run = async () => {
     (error) => error.code === 'EMAIL_REQUEST_REJECTED'
   );
 
+  enqueueResponse(429, { message: 'private rate limit response' });
+  await assert.rejects(
+    emailService.sendVerificationEmail({
+      to: 'recipient@example.test',
+      subject: 'Rate limited',
+      html: '<p>Test</p>',
+    }),
+    (error) => error.code === 'EMAIL_RATE_LIMITED'
+  );
+
+  enqueueResponse(403, { message: 'sender domain is not verified' });
+  await assert.rejects(
+    emailService.sendVerificationEmail({
+      to: 'recipient@example.test',
+      subject: 'Unverified sender',
+      html: '<p>Test</p>',
+    }),
+    (error) => error.code === 'EMAIL_PROVIDER_AUTH_FAILED'
+  );
+
   responses.push(new Error('private request failure detail'));
   assert.deepEqual(
     await emailService.sendEmail({
@@ -93,6 +113,18 @@ const run = async () => {
       html: '<p>Notification</p>',
     }),
     { success: false, submitted: false }
+  );
+
+  const timeoutError = new Error('private timeout detail');
+  timeoutError.name = 'AbortError';
+  responses.push(timeoutError);
+  await assert.rejects(
+    emailService.sendVerificationEmail({
+      to: 'recipient@example.test',
+      subject: 'Timed out',
+      html: '<p>Test</p>',
+    }),
+    (error) => error.code === 'EMAIL_REQUEST_TIMEOUT'
   );
 
   enqueueResponse(200, {});
@@ -131,6 +163,9 @@ const run = async () => {
     '987654',
     'private API key detail',
     'private request failure detail',
+    'private rate limit response',
+    'sender domain is not verified',
+    'private timeout detail',
     're_test_secret_value',
   ]) {
     assert.equal(

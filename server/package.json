@@ -8,7 +8,7 @@
     "start": "node index.js",
     "seed": "node utils/seed.js",
     "unlock-admin": "node utils/unlockAdmin.js",
-    "test": "node testEnv.js && node testErrorHandler.js && node testCors.js && node testPaymentSystem.js && node testAuthEmailOtp.js && node testEmailService.js && node testPasswordReset.js && node testUploadImage.js && node testEventManagement.js && node testEventRoomManagement.js"
+    "test": "node testEnv.js && node testErrorHandler.js && node testCors.js && node testPaymentSystem.js && node testAuthEmailOtp.js && node testEmailService.js && node testEmailWorkflows.js && node testPasswordReset.js && node testUploadImage.js && node testEventManagement.js && node testEventRoomManagement.js"
   },
   "keywords": [
     "event-booking",

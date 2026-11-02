@@ -116,9 +116,9 @@ require.cache[emailServicePath] = {
   filename: emailServicePath,
   loaded: true,
   exports: {
-    sendVerificationEmail: async ({ html }) => {
-      if (failEmailDelivery) throw new Error('Simulated SMTP failure');
-      sentEmails.push(html);
+    sendVerificationEmail: async (message) => {
+      if (failEmailDelivery) throw new Error('Simulated Resend failure');
+      sentEmails.push(message);
       return { submitted: true, messageId: `<test-${sentEmails.length}@example.test>` };
     },
     sendEmail: async () => ({ success: true }),
@@ -334,7 +334,9 @@ const run = async () => {
   assert.equal(initial.body.data.emailSubmissionStatus, 'submitted');
   assert.equal(sentEmails.length, 1);
   let user = users.get('otp-test@example.com');
-  const originalOtp = extractOtp(sentEmails[0]);
+  assert.equal(sentEmails[0].to, 'otp-test@example.com');
+  assert.match(sentEmails[0].subject, /verification code/i);
+  const originalOtp = extractOtp(sentEmails[0].html);
   assert.match(originalOtp, /^\d{6}$/);
   assert.equal(user.emailVerified, false);
   assert.equal(user.phone, '+91 98765-43210');
@@ -402,7 +404,8 @@ const run = async () => {
   const resent = resendAttempts.find((result) => result.status === 200);
   assert.equal(resent.status, 200);
   assert.equal(sentEmails.length, 2);
-  const replacementOtp = extractOtp(sentEmails[1]);
+  assert.equal(sentEmails[1].to, user.email);
+  const replacementOtp = extractOtp(sentEmails[1].html);
   assert.match(replacementOtp, /^\d{6}$/);
   assert.notEqual(replacementOtp, originalOtp);
   assert.equal(
@@ -516,7 +519,7 @@ const run = async () => {
     whatsappNumber: '9876543210',
   });
   const expiredUser = users.get('expired-test@example.com');
-  const expiredOtp = extractOtp(sentEmails[2]);
+  const expiredOtp = extractOtp(sentEmails[2].html);
   assert.equal(expiredRegistration.status, 202);
   expiredUser.emailOtpExpiresAt = new Date(Date.now() - 1000);
   await expiredUser.save();
