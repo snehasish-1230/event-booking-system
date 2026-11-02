@@ -12,10 +12,40 @@ const createEmailError = (code, message) => {
 const hasEmailConfiguration = () =>
   Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
 
-const logEmailFailure = (error, status) => {
+const sanitizeProviderMessage = (message) => {
+  if (typeof message !== 'string') return undefined;
+
+  return message
+    .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[redacted email]')
+    .replace(/\bBearer\s+\S+/gi, '[redacted credential]')
+    .replace(/\bre_[A-Za-z0-9_-]+\b/gi, '[redacted credential]')
+    .replace(/\b\d{6}\b/g, '[redacted code]')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .slice(0, 300);
+};
+
+const getProviderCode = (result) => {
+  const code = result?.name || result?.code;
+  return typeof code === 'string' && /^[A-Za-z0-9_.-]{1,80}$/.test(code)
+    ? code
+    : undefined;
+};
+
+const getHttpErrorCode = (status) => {
+  if (status === 401) return 'EMAIL_PROVIDER_AUTH_FAILED';
+  if (status === 403) return 'EMAIL_PROVIDER_FORBIDDEN';
+  if (status === 422) return 'EMAIL_REQUEST_REJECTED';
+  if (status === 429) return 'EMAIL_RATE_LIMITED';
+  if (status >= 500) return 'EMAIL_PROVIDER_ERROR';
+  return 'EMAIL_DELIVERY_FAILED';
+};
+
+const logEmailFailure = (error, status, providerCode, providerMessage) => {
   console.error('Resend email submission failed:', {
     code: error.code || 'EMAIL_DELIVERY_FAILED',
     status,
+    providerCode,
+    diagnostic: sanitizeProviderMessage(providerMessage),
     errorName: error.name,
   });
 };
@@ -36,6 +66,7 @@ const sendEmailMessage = async ({ to, subject, html }) => {
     EMAIL_REQUEST_TIMEOUT_MS
   );
   let response;
+  let result;
 
   try {
     response = await fetch(RESEND_API_URL, {
@@ -52,6 +83,11 @@ const sendEmailMessage = async ({ to, subject, html }) => {
       }),
       signal: controller.signal,
     });
+    try {
+      result = await response.json();
+    } catch {
+      result = null;
+    }
   } catch (cause) {
     const error = createEmailError(
       cause.name === 'AbortError'
@@ -67,25 +103,17 @@ const sendEmailMessage = async ({ to, subject, html }) => {
     clearTimeout(timeout);
   }
 
-  let result;
-  try {
-    result = await response.json();
-  } catch {
-    result = null;
-  }
-
   if (!response.ok) {
     const error = createEmailError(
-      response.status === 401 || response.status === 403
-        ? 'EMAIL_PROVIDER_AUTH_FAILED'
-        : response.status === 422
-          ? 'EMAIL_REQUEST_REJECTED'
-          : response.status === 429
-            ? 'EMAIL_RATE_LIMITED'
-            : 'EMAIL_DELIVERY_FAILED',
+      getHttpErrorCode(response.status),
       'Email provider did not accept the message'
     );
-    logEmailFailure(error, response.status);
+    logEmailFailure(
+      error,
+      response.status,
+      getProviderCode(result),
+      result?.message
+    );
     throw error;
   }
 

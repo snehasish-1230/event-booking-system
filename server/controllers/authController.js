@@ -204,7 +204,11 @@ const sendOtp = async (user, isResend = false) => {
     await User.updateOne(
       { _id: deliveryUser._id, emailOtpHash: otpHash },
       {
-        $unset: { emailOtpHash: 1, emailOtpExpiresAt: 1 },
+        $unset: {
+          emailOtpHash: 1,
+          emailOtpExpiresAt: 1,
+          emailOtpResendAvailableAt: 1,
+        },
         $set: { emailOtpAttempts: 0 },
       }
     );

@@ -559,6 +559,7 @@ const run = async () => {
     429
   );
 
+  const usersBeforeFailure = users.size;
   failEmailDelivery = true;
   const failedDelivery = await invoke(authController.register, {
     name: 'Email Failure User',
@@ -571,6 +572,23 @@ const run = async () => {
   assert.equal(failedDelivery.status, 503);
   assert.equal(pendingFailureUser.emailVerified, false);
   assert.equal(pendingFailureUser.emailOtpHash, undefined);
+  assert.equal(pendingFailureUser.emailOtpResendAvailableAt, undefined);
+
+  failEmailDelivery = false;
+  const retriedDelivery = await invoke(authController.register, {
+    name: 'Email Failure User',
+    email: 'email-failure@example.com',
+    password: 'Pass123',
+    phone: '9876543210',
+    whatsappNumber: '9876543210',
+  });
+  assert.equal(retriedDelivery.status, 202);
+  assert.equal(users.size, usersBeforeFailure + 1);
+  assert.equal(sentEmails.at(-1).to, 'email-failure@example.com');
+  const retriedUser = users.get('email-failure@example.com');
+  assert.ok(retriedUser.emailOtpHash);
+  assert.ok(retriedUser.emailOtpResendAvailableAt);
+  assert.equal(retriedUser.emailVerified, false);
 
   const config = require('./config/env');
   config.RESEND_API_KEY = undefined;

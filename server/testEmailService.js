@@ -102,7 +102,21 @@ const run = async () => {
       subject: 'Unverified sender',
       html: '<p>Test</p>',
     }),
-    (error) => error.code === 'EMAIL_PROVIDER_AUTH_FAILED'
+    (error) => error.code === 'EMAIL_PROVIDER_FORBIDDEN'
+  );
+
+  enqueueResponse(500, {
+    name: 'internal_server_error',
+    message:
+      'Delivery failed for recipient@example.test; OTP 123456; key re_private_test_key',
+  });
+  await assert.rejects(
+    emailService.sendVerificationEmail({
+      to: 'recipient@example.test',
+      subject: 'Provider failure',
+      html: '<p>Test</p>',
+    }),
+    (error) => error.code === 'EMAIL_PROVIDER_ERROR'
   );
 
   responses.push(new Error('private request failure detail'));
@@ -161,10 +175,10 @@ const run = async () => {
     '123456',
     '654321',
     '987654',
-    'private API key detail',
     'private request failure detail',
-    'private rate limit response',
-    'sender domain is not verified',
+    'Delivery failed for recipient@example.test',
+    'recipient@example.test; OTP 123456',
+    'key re_private_test_key',
     'private timeout detail',
     're_test_secret_value',
   ]) {
@@ -175,13 +189,22 @@ const run = async () => {
     );
   }
   assert.ok(serializedLogs.includes('EMAIL_PROVIDER_AUTH_FAILED'));
+  assert.ok(serializedLogs.includes('EMAIL_PROVIDER_FORBIDDEN'));
+  assert.ok(serializedLogs.includes('EMAIL_PROVIDER_ERROR'));
+  assert.ok(serializedLogs.includes('internal_server_error'));
+  assert.ok(serializedLogs.includes('[redacted email]'));
+  assert.ok(serializedLogs.includes('sender domain is not verified'));
+  assert.ok(serializedLogs.includes('"status":401'));
+  assert.ok(serializedLogs.includes('"status":403'));
+  assert.ok(serializedLogs.includes('"status":422'));
+  assert.ok(serializedLogs.includes('"status":500'));
 
   console.log('Resend submission, failure, configuration, and redaction checks passed.');
 };
 
 run()
   .catch((error) => {
-    console.error(error);
+    originalError(error);
     process.exitCode = 1;
   })
   .finally(() => {
