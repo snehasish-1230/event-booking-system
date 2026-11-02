@@ -1,104 +1,122 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 const env = require('../config/env');
 
-const EMAIL_REQUEST_TIMEOUT_MS = 10000;
-let resendClient;
+const EMAIL_CONNECTION_TIMEOUT_MS = 10000;
+const EMAIL_GREETING_TIMEOUT_MS = 10000;
+const EMAIL_SOCKET_TIMEOUT_MS = 15000;
+let transporter;
 
-const getResendClient = () => {
-  if (!env.RESEND_API_KEY) {
-    const error = new Error('RESEND_API_KEY must be configured');
-    error.code = 'EMAIL_NOT_CONFIGURED';
-    throw error;
-  }
+const hasEmailConfiguration = () =>
+  Boolean(env.EMAIL_USER && env.EMAIL_PASS && env.EMAIL_FROM);
 
-  if (!resendClient) {
-    resendClient = new Resend(env.RESEND_API_KEY);
+const createTransporter = () => {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: env.EMAIL_HOST,
+      port: env.EMAIL_PORT,
+      secure: env.EMAIL_SECURE,
+      requireTLS: !env.EMAIL_SECURE,
+      connectionTimeout: EMAIL_CONNECTION_TIMEOUT_MS,
+      greetingTimeout: EMAIL_GREETING_TIMEOUT_MS,
+      socketTimeout: EMAIL_SOCKET_TIMEOUT_MS,
+      auth: {
+        user: env.EMAIL_USER,
+        pass: env.EMAIL_PASS,
+      },
+    });
   }
-  return resendClient;
+  return transporter;
+};
+
+const getAddress = (value) => {
+  const address = typeof value === 'string' ? value : value?.address;
+  if (typeof address !== 'string') return '';
+  return address.match(/<([^<>]+)>/)?.[1]?.trim().toLowerCase()
+    || address.trim().toLowerCase();
 };
 
 const maskRecipient = (recipient) => {
-  const address = Array.isArray(recipient) ? recipient[0] : recipient;
-  if (typeof address !== 'string') return 'unavailable';
-  const normalizedAddress =
-    address.match(/<([^<>]+)>/)?.[1]?.trim().toLowerCase()
-    || address.trim().toLowerCase();
-  const [localPart, domain] = normalizedAddress.split('@');
+  const value = Array.isArray(recipient) ? recipient[0] : recipient;
+  const address = getAddress(value);
+  const [localPart, domain] = address.split('@');
   if (!localPart || !domain) return 'unavailable';
   return `${localPart.slice(0, 1)}***@${domain}`;
 };
 
-const logSubmission = ({ to, messageId, error, success }) => {
+const logTransactionalAttempt = ({ to, info, error, recipientAccepted }) => {
   const diagnostics = {
     recipient: maskRecipient(to),
-    submissionStatus: success ? 'accepted' : 'failed_or_rejected',
-    recipientAccepted: success,
-    messageId: success ? messageId : undefined,
-    providerError: error?.name,
-    statusCode: Number.isInteger(error?.statusCode)
-      ? error.statusCode
-      : undefined,
+    submissionStatus: recipientAccepted ? 'accepted' : 'failed_or_rejected',
+    recipientAccepted,
+    messageId: recipientAccepted ? info?.messageId : undefined,
+    acceptedCount: Array.isArray(info?.accepted) ? info.accepted.length : 0,
+    rejectedCount: Array.isArray(info?.rejected) ? info.rejected.length : 0,
+    responseCode: info?.responseCode || error?.responseCode || undefined,
+    smtpCode: error?.code || undefined,
+    errorName: error?.name || undefined,
   };
-  (success ? console.info : console.error)(
-    'Transactional email Resend submission result:',
+  (recipientAccepted ? console.info : console.error)(
+    'Transactional email SMTP submission result:',
     diagnostics
   );
 };
 
-const createDeliveryError = (code = 'EMAIL_DELIVERY_FAILED') => {
-  const error = new Error('Email provider did not confirm the submission');
+const logSmtpFailure = (event, error) => {
+  console.error(event, {
+    name: error?.name,
+    code: error?.code,
+    responseCode: error?.responseCode,
+  });
+};
+
+const createSafeDeliveryError = (code = 'EMAIL_DELIVERY_FAILED') => {
+  const error = new Error('Email provider did not accept the recipient');
   error.code = code;
   return error;
 };
 
-const sendTransactionalEmail = async ({ to, subject, html }) => {
-  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+const sendEmailMessage = async ({ to, subject, html }) => {
+  if (!hasEmailConfiguration()) {
     const error = new Error(
-      'RESEND_API_KEY and EMAIL_FROM must be configured for email delivery'
+      'EMAIL_USER, EMAIL_PASS, and EMAIL_FROM must be configured for email delivery'
     );
     error.code = 'EMAIL_NOT_CONFIGURED';
-    logSubmission({ to, error, success: false });
     throw error;
   }
 
-  let response;
+  const from = env.EMAIL_FROM.includes('<')
+    ? env.EMAIL_FROM
+    : { name: env.EMAIL_FROM_NAME, address: env.EMAIL_FROM };
+  let info;
   try {
-    response = await getResendClient().emails.send(
-      {
-        from: env.EMAIL_FROM,
-        to,
-        subject,
-        html,
-      },
-      { signal: AbortSignal.timeout(EMAIL_REQUEST_TIMEOUT_MS) }
-    );
+    info = await createTransporter().sendMail({ from, to, subject, html });
   } catch (error) {
-    logSubmission({ to, error, success: false });
-    throw createDeliveryError();
-  }
-
-  const messageId = response?.data?.id;
-  if (response?.error || typeof messageId !== 'string' || !messageId) {
-    logSubmission({
-      to,
-      error: response?.error,
-      success: false,
-    });
-    throw createDeliveryError(
-      response?.error?.statusCode === 401 ||
-        response?.error?.statusCode === 403
-        ? 'EMAIL_PROVIDER_AUTH_FAILED'
-        : 'EMAIL_DELIVERY_FAILED'
+    logTransactionalAttempt({ to, error, recipientAccepted: false });
+    throw createSafeDeliveryError(
+      error?.code === 'EAUTH' ? 'EMAIL_AUTH_FAILED' : 'EMAIL_DELIVERY_FAILED'
     );
   }
 
-  logSubmission({ to, messageId, success: true });
-  return { submitted: true, messageId };
+  const recipient = getAddress(to);
+  const acceptedRecipients = new Set((info.accepted || []).map(getAddress));
+  const rejectedRecipients = new Set((info.rejected || []).map(getAddress));
+  const recipientAccepted =
+    acceptedRecipients.has(recipient) && !rejectedRecipients.has(recipient);
+  logTransactionalAttempt({ to, info, recipientAccepted });
+
+  if (!recipientAccepted) {
+    throw createSafeDeliveryError('EMAIL_RECIPIENT_REJECTED');
+  }
+
+  return {
+    submitted: true,
+    messageId: info.messageId,
+  };
 };
 
 const sendEmail = async (options) => {
   try {
-    await sendTransactionalEmail(options);
+    await sendEmailMessage(options);
     return { success: true };
   } catch {
     return { success: false };
@@ -106,23 +124,35 @@ const sendEmail = async (options) => {
 };
 
 const verifyConnection = async () => {
-  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+  if (!hasEmailConfiguration()) {
     const error = new Error(
-      'RESEND_API_KEY and EMAIL_FROM must be configured before production startup'
+      'EMAIL_USER, EMAIL_PASS, and EMAIL_FROM must be configured before production startup'
     );
     error.code = 'EMAIL_NOT_CONFIGURED';
     if (env.NODE_ENV === 'production') throw error;
-    console.warn('Resend email configuration is incomplete — email sending is disabled');
+    console.warn('Gmail SMTP configuration is incomplete — email sending is disabled');
     return false;
   }
 
-  getResendClient();
-  console.info('Resend email service configuration is ready');
-  return true;
+  try {
+    await createTransporter().verify();
+    console.info('Gmail SMTP connection verified — email service is ready');
+    return true;
+  } catch (error) {
+    logSmtpFailure('Gmail SMTP connection verification failed:', error);
+    if (env.NODE_ENV === 'production') {
+      const verificationError = new Error(
+        'Gmail SMTP connection verification failed; check email configuration and Gmail App Password'
+      );
+      verificationError.code = 'SMTP_VERIFICATION_FAILED';
+      throw verificationError;
+    }
+    return false;
+  }
 };
 
-const sendVerificationEmail = (options) => sendTransactionalEmail(options);
-const sendPasswordResetEmail = (options) => sendTransactionalEmail(options);
+const sendVerificationEmail = (options) => sendEmailMessage(options);
+const sendPasswordResetEmail = (options) => sendEmailMessage(options);
 
 module.exports = {
   sendEmail,

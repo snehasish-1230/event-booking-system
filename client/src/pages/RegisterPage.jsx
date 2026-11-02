@@ -219,6 +219,10 @@ const RegisterPage = () => {
         setApiError(
           'The registration request timed out. Check your email before retrying; the verification message may already have been submitted.'
         );
+      } else if (!error.response) {
+        setApiError(
+          'Unable to reach the server. Check your connection; if this continues, the deployed website origin may not be allowed by the backend.'
+        );
       } else if (data?.errors) {
         if (Array.isArray(data.errors)) {
           const fieldErrors = {};

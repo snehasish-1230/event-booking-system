@@ -116,7 +116,7 @@ const issueOtp = async (user, existingReset = null) => {
   } catch {
     await clearOtp(reset);
     console.error(
-      'Password reset email delivery failed. Check Resend configuration and provider logs.'
+      'Password reset email delivery failed. Check Gmail SMTP configuration and server diagnostics.'
     );
     return false;
   }

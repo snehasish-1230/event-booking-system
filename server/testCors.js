@@ -1,12 +1,11 @@
 const assert = require("node:assert/strict");
 const express = require("express");
 const configureCors = require("./config/cors");
+const { globalLimiter } = require("./middlewares/rateLimiter");
 const authRoutes = require("./routes/authRoutes");
 
 const frontendOrigins = [
-  "https://event-booking-system-72d4425dq-ff-team8.vercel.app",
-  "https://event-booking-system-3jw3p0uq2-ff-team8.vercel.app",
-  "https://event-booking-system-xi-two.vercel.app",
+  "https://event-booking-system-bc862y17v-ff-team8.vercel.app",
 ];
 const app = express();
 
@@ -16,6 +15,7 @@ configureCors(app, {
 });
 
 app.use(express.json());
+app.use("/api", globalLimiter);
 app.use("/api/auth", authRoutes);
 
 const server = app.listen(0, "127.0.0.1");
@@ -27,47 +27,43 @@ const run = async () => {
 
   try {
     for (const frontendOrigin of frontendOrigins) {
-      const preflight = await fetch(
-        `${baseUrl}/api/auth/register`,
-        {
+      for (const endpoint of ["/api/auth/register", "/api/auth/login"]) {
+        const preflight = await fetch(`${baseUrl}${endpoint}`, {
           method: "OPTIONS",
           headers: {
             Origin: frontendOrigin,
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "authorization,content-type",
           },
-        },
-      );
+        });
 
-      assert.equal(preflight.status, 204);
-      assert.equal(
-        preflight.headers.get("access-control-allow-origin"),
-        frontendOrigin,
-      );
-      assert.match(preflight.headers.get("access-control-allow-methods"), /POST/);
-      assert.match(
-        preflight.headers.get("access-control-allow-headers"),
-        /Authorization/i,
-      );
-      assert.equal(preflight.headers.get("access-control-allow-credentials"), null);
+        assert.equal(preflight.status, 204);
+        assert.equal(
+          preflight.headers.get("access-control-allow-origin"),
+          frontendOrigin,
+        );
+        assert.match(preflight.headers.get("access-control-allow-methods"), /POST/);
+        assert.match(
+          preflight.headers.get("access-control-allow-headers"),
+          /Authorization/i,
+        );
+        assert.equal(preflight.headers.get("access-control-allow-credentials"), null);
 
-      const registration = await fetch(
-        `${baseUrl}/api/auth/register`,
-        {
+        const response = await fetch(`${baseUrl}${endpoint}`, {
           method: "POST",
           headers: {
             Origin: frontendOrigin,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({}),
-        },
-      );
+        });
 
-      assert.equal(registration.status, 400);
-      assert.equal(
-        registration.headers.get("access-control-allow-origin"),
-        frontendOrigin,
-      );
+        assert.equal(response.status, 400);
+        assert.equal(
+          response.headers.get("access-control-allow-origin"),
+          frontendOrigin,
+        );
+      }
     }
 
     const blockedPreflight = await fetch(`${baseUrl}/api/auth/register`, {
@@ -82,7 +78,7 @@ const run = async () => {
     assert.equal(blockedPreflight.headers.get("access-control-allow-origin"), null);
 
     console.log(
-      "CORS tests passed: both production origins can preflight and reach registration validation; untrusted origin is blocked.",
+      "CORS tests passed: the configured production origin can preflight and reach registration/login validation; untrusted origin is blocked.",
     );
   } finally {
     await new Promise((resolve, reject) =>

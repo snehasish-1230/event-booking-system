@@ -4,15 +4,9 @@ const localDevelopmentOrigins = [
   "http://localhost:5175",
   "http://localhost:5173",
 ];
-const deployedFrontendOrigins = [
-  "https://event-booking-system-72d4425dq-ff-team8.vercel.app",
-  "https://event-booking-system-3jw3p0uq2-ff-team8.vercel.app",
-  "https://event-booking-system-xi-two.vercel.app",
-];
 
 const configureCors = (app, { nodeEnv, clientUrl }) => {
   const allowedOrigins = new Set([
-    ...deployedFrontendOrigins,
     ...(nodeEnv === "development" ? localDevelopmentOrigins : []),
     ...clientUrl.split(",").map((origin) => origin.trim()).filter(Boolean),
   ]);

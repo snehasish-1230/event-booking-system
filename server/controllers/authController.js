@@ -210,12 +210,12 @@ const sendOtp = async (user, isResend = false) => {
     );
     console.error(
       error.code === 'EMAIL_NOT_CONFIGURED'
-        ? 'Email verification delivery unavailable: RESEND_API_KEY and EMAIL_FROM are required.'
-        : 'Email verification delivery failed. Check the configured Resend service.'
+        ? 'Email verification delivery unavailable: email sender credentials are required.'
+        : 'Email verification delivery failed. Check the configured Gmail SMTP service.'
     );
     throw new AppError(
       error.code === 'EMAIL_NOT_CONFIGURED'
-        ? 'Email verification is temporarily unavailable. Configure RESEND_API_KEY and EMAIL_FROM.'
+        ? 'Email verification is temporarily unavailable. Configure EMAIL_USER, EMAIL_PASS, and EMAIL_FROM.'
         : 'Unable to send the verification email. Please try again later.',
       503
     );

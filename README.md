@@ -210,8 +210,12 @@ MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret_min_32_chars
 JWT_EXPIRE=7d
 CLIENT_URL=http://localhost:5175,http://localhost:5173
-RESEND_API_KEY=your_resend_api_key
-EMAIL_FROM=EventBooking <no-reply@your-verified-domain>
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-16-character-google-app-password
+EMAIL_FROM=your-email@gmail.com
 EMAIL_FROM_NAME=EventBooking
 EMAIL_OTP_SECRET=optional_dedicated_secret_defaults_to_JWT_SECRET
 UPLOAD_MAX_SIZE=5242880
@@ -220,7 +224,7 @@ ADMIN_SEED_PASSWORD=your_admin_password
 ADMIN_SEED_NAME=Admin
 ```
 
-> Email verification and password reset require `RESEND_API_KEY` and `EMAIL_FROM`. `MONGO_URI` remains accepted as a legacy alias for `MONGODB_URI`. Set `EMAIL_OTP_SECRET` to a long random secret if you want a dedicated HMAC key for OTP and reset-token hashes; otherwise the backend uses `JWT_SECRET`. Codes and reset credentials are never included in email-delivery logs or ordinary API responses.
+> Email verification and password reset require Gmail SMTP credentials. `EMAIL_*` settings are preferred; existing `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM_NAME` settings remain supported. Use a Google App Password, never your normal Gmail password. `MONGO_URI` remains accepted as a legacy alias for `MONGODB_URI`. OTPs are hashed in storage, expire after five minutes, and are not written to logs or public API responses.
 
 **client/.env** (optional — local development and production API URLs are configured separately)
 
@@ -526,9 +530,9 @@ event-booking-system/
 | Build command | `npm install` |
 | Start command | `npm start` |
 
-4. Add all required environment variables from the table below, including `NODE_ENV=production`
-5. Set `CLIENT_URL=https://event-booking-system-72d4425dq-ff-team8.vercel.app,https://event-booking-system-xi-two.vercel.app` (comma-separated origins; do not include paths).
-6. Configure `RESEND_API_KEY` and a Resend-verified `EMAIL_FROM` sender. Set `NODE_ENV=production`; the server validates required configuration and connects to MongoDB at startup.
+4. Add all required environment variables from the table below, including `NODE_ENV=production`.
+5. Set `CLIENT_URL=https://event-booking-system-bc862y17v-ff-team8.vercel.app` (exact origin, no path). Update it if the production frontend origin changes.
+6. Configure Gmail SMTP with an App Password using `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_SECURE`, `EMAIL_USER`, `EMAIL_PASS`, and `EMAIL_FROM`. The server verifies the SMTP connection during startup.
 
 ### Frontend (Vercel or Netlify)
 
@@ -559,10 +563,15 @@ event-booking-system/
 | `MONGODB_URI` | MongoDB connection string (`MONGO_URI` is accepted as a legacy alias) | — |
 | `JWT_SECRET` | JWT signing secret (min 32 chars in production) | — |
 | `JWT_EXPIRE` | JWT token expiration | `7d` |
-| `CLIENT_URL` | Comma-separated frontend origins for CORS | Production: current Vercel deployment and stable domain; local: `http://localhost:5175,http://localhost:5173` |
-| `RESEND_API_KEY` | Resend API key (secret) | — |
-| `EMAIL_FROM` | Sender address verified with Resend | — |
-| `EMAIL_FROM_NAME` | Optional sender name used in email templates | `EventBooking` |
+| `CLIENT_URL` | Comma-separated exact frontend origins for CORS | Production: current Vercel origin; local: `http://localhost:5175,http://localhost:5173` |
+| `EMAIL_HOST` | Gmail SMTP host | `smtp.gmail.com` |
+| `EMAIL_PORT` | SMTP port | `587` (STARTTLS) or `465` (TLS) |
+| `EMAIL_SECURE` | Use implicit TLS (must be `false` on 587, `true` on 465) | `false` |
+| `EMAIL_USER` | Gmail account address | — |
+| `EMAIL_PASS` | Google App Password (secret) | — |
+| `EMAIL_FROM` | Sender address; must be accepted by the Gmail account | defaults to `EMAIL_USER` |
+| `EMAIL_FROM_NAME` | Sender display name | `EventBooking` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM_NAME` | Legacy email variable aliases supported for existing deployments | — |
 | `EMAIL_OTP_SECRET` | HMAC secret for OTP/reset credentials; defaults to `JWT_SECRET` | — |
 | `UPLOAD_MAX_SIZE` | Max upload size in bytes | `5242880` (5MB) |
 | `UPI_ID` | Merchant UPI address for payment QR generation | `merchant@upi` |
@@ -584,14 +593,14 @@ NODE_ENV=development npm run unlock-admin -- admin@example.com
 
 The command requires the exact admin email and refuses to run unless `NODE_ENV=development`. It changes only that verified admin's `loginAttempts` and `lockUntil`; it does not change the password or other users. Do not use it as a way to bypass shared-IP HTTP 429 limits.
 
-### Email Setup (Resend)
+### Email Setup (Gmail SMTP)
 
-1. Create an API key in the [Resend dashboard](https://resend.com/api-keys).
-2. Verify the sending domain in Resend and configure the required DNS records.
-3. Configure `RESEND_API_KEY` and `EMAIL_FROM` in the backend environment. Keep the API key private.
-4. The server validates email configuration at startup; it does not make a network verification request. Email requests use Resend's API and only succeed when Resend returns a message ID.
-5. A successful API submission confirms provider acceptance, not inbox delivery. Perform a controlled test to an authorized recipient and check delivery status in Resend.
-6. Missing configuration, provider rejection, and network failures do not count as successful delivery. OTP state is cleared when verification email submission fails.
+1. Enable 2-Step Verification for the Gmail account.
+2. Create a Google App Password from the Google Account security settings. Use the 16-character App Password, not the normal account password.
+3. Configure the `EMAIL_*` values in Render (and optionally locally). For port 587 use `EMAIL_SECURE=false`; for port 465 use `EMAIL_SECURE=true`.
+4. The backend verifies SMTP configuration/connectivity at startup. Startup fails in production if SMTP credentials are absent or verification fails.
+5. Registration reports success only after Nodemailer reports that Gmail accepted the recipient. Rejected recipients, authentication failures, and network errors do not count as success, and pending OTP data is cleared when sending fails.
+6. Gmail SMTP acceptance is not proof of inbox delivery; check the authorized test mailbox's Inbox and Spam folders.
 
 ---
 

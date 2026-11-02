@@ -131,6 +131,10 @@ const LoginPage = () => {
     } catch (error) {
       const data = error.response?.data;
       let message = data?.message || error.message || 'Login failed. Please try again.';
+      if (!error.response) {
+        message =
+          'Unable to reach the server. Check your connection; if this continues, the deployed website origin may not be allowed by the backend.';
+      }
       if ([423, 429].includes(error.response?.status)) {
         const remainingSeconds = Number(data?.retryAfterSeconds) ||
           getRetryAfterSeconds(error.response.headers);

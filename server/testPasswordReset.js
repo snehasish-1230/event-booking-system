@@ -2,8 +2,12 @@ const assert = require('assert/strict');
 
 process.env.JWT_SECRET = 'test-password-reset-jwt-secret-at-least-thirty-two';
 process.env.EMAIL_OTP_SECRET = 'test-password-reset-hmac-secret';
-process.env.RESEND_API_KEY = 're_test-only-key';
-process.env.EMAIL_FROM = 'EventBooking <sender@example.test>';
+process.env.EMAIL_HOST = 'smtp.gmail.com';
+process.env.EMAIL_PORT = '587';
+process.env.EMAIL_SECURE = 'false';
+process.env.EMAIL_USER = 'sender@example.test';
+process.env.EMAIL_PASS = 'test-only-app-password';
+process.env.EMAIL_FROM = 'sender@example.test';
 process.env.NODE_ENV = 'test';
 
 const userPath = require.resolve('./models/User');

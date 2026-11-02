@@ -146,7 +146,7 @@ event-booking-system/
 **Implementation notes:**
 
 - Export a single `env` object reading `process.env` with defaults (`PORT=5002`, `NODE_ENV=development`, local `MONGODB_URI`, `JWT_EXPIRE=7d`, `CLIENT_URL`, `UPLOAD_MAX_SIZE=5242880`).
-- In production, throw at boot if `MONGODB_URI` (or its legacy alias `MONGO_URI`), `JWT_SECRET` (minimum 32 chars), `RESEND_API_KEY`, or `EMAIL_FROM` is missing.
+- In production, throw at boot if `MONGODB_URI` (or its legacy alias `MONGO_URI`), `JWT_SECRET` (minimum 32 chars), or Gmail SMTP credentials are missing or incorrectly configured.
 - Keep all secrets out of source; `.env.example` documents every variable with placeholder values only.
 
 **Acceptance:** Requiring `config/env` in development never throws; production fails fast on missing critical vars.
@@ -178,7 +178,7 @@ event-booking-system/
 
 - `app.set('trust proxy', 1)` and `app.disable('x-powered-by')`.
 - Helmet with explicit CSP directives in production; relaxed (`contentSecurityPolicy: false`) in development.
-- CORS from comma-separated `CLIENT_URL` with an origin allowlist callback and `credentials: true`.
+- CORS from comma-separated `CLIENT_URL` with an origin allowlist callback. Credentials remain disabled because the API uses JWT authorization headers rather than cross-origin cookies.
 - Body parsers with `10kb` limits for JSON and URL-encoded payloads.
 - Express 5-compatible Mongo sanitize: a small middleware calling `mongoSanitize.sanitize(req.body)` and `req.params` (never `mongoSanitize()` directly, and do not touch the read-only `req.query`).
 - Morgan (`combined` in production, `dev` otherwise).
@@ -295,11 +295,11 @@ event-booking-system/
 
 **Implementation notes:**
 
-- Resend SDK from `RESEND_API_KEY` and `EMAIL_FROM`; `sendEmail({to,subject,html})` catches and logs safe errors, never throws.
-- `verifyConnection()` validates configuration without making a network request; missing settings warn in development and fail startup in production.
+- Nodemailer Gmail SMTP transport from `EMAIL_*` env (with `SMTP_*` legacy aliases); `sendEmail({to,subject,html})` catches and logs safe errors, never throws.
+- `verifyConnection()` verifies the SMTP connection at startup; missing settings warn in development and fail startup in production.
 - Templates are functions returning HTML; escape all user-provided values with `escapeHtml`.
 
-**Acceptance:** Registration/cancellation send email when configured; missing Resend configuration logs a warning in development and fails email-dependent flows safely.
+**Acceptance:** Registration/cancellation send email when configured; missing SMTP configuration logs a warning in development and fails email-dependent flows safely.
 
 ---
 
